@@ -5,6 +5,9 @@ import {
   Clock, Heart, List, HelpCircle, Power 
 } from 'lucide-react';
 
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './firebase';
+
 import { Channel, UserSettings } from './types';
 import { DEFAULT_CHANNELS } from './mockData';
 import VideoPlayer from './components/VideoPlayer';
@@ -31,27 +34,9 @@ export default function App() {
   });
   const [isPending, startLayoutTransition] = useTransition();
 
-  // Load persistence configurations once and update clock
+  // Load persistence configurations once and update clock, plus listen to Firestore channels
   useEffect(() => {
-    // 1. Channels Data loading
-    const savedChannels = localStorage.getItem(LOCAL_CHANNELS_KEY);
-    if (savedChannels) {
-      try {
-        const parsed = JSON.parse(savedChannels);
-        if (parsed && parsed.length > 0) {
-          setChannels(parsed);
-          setSelectedChannelId(parsed[0].id);
-        } else {
-          loadDefaultChannels();
-        }
-      } catch (e) {
-        loadDefaultChannels();
-      }
-    } else {
-      loadDefaultChannels();
-    }
-
-    // 2. Settings configuration loading
+    // 1. Settings configuration loading
     const savedSettings = localStorage.getItem(LOCAL_SETTINGS_KEY);
     if (savedSettings) {
       try {
@@ -64,7 +49,7 @@ export default function App() {
       }
     }
 
-    // 3. Dynamic Clock tick in absolute UTC interval
+    // 2. Dynamic Clock tick in absolute UTC interval
     const updateTime = () => {
       const now = new Date();
       setUtcTime(now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC');
@@ -74,6 +59,38 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Subscribe to real-time changes in Firestore channels collection
+  useEffect(() => {
+    const channelsCollection = collection(db, 'channels');
+
+    const unsubscribe = onSnapshot(channelsCollection, (snapshot) => {
+      const dbChannels: Channel[] = [];
+      snapshot.forEach((doc) => {
+        dbChannels.push(doc.data() as Channel);
+      });
+
+      if (dbChannels.length === 0) {
+        // If the workspace DB is completely empty (e.g., initial start), auto-seed with defaults
+        seedDefaultChannelsToFirestore();
+      } else {
+        // Keep channels sorted alphabetically by name to ensure stable view order
+        dbChannels.sort((a, b) => a.name.localeCompare(b.name));
+        setChannels(dbChannels);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'channels');
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Update selected channel fallback once channels are loaded
+  useEffect(() => {
+    if (channels.length > 0 && !selectedChannelId) {
+      setSelectedChannelId(channels[0].id);
+    }
+  }, [channels, selectedChannelId]);
 
   // Screen interaction monitoring to support immersive auto-hide UI during player viewing
   useEffect(() => {
@@ -121,26 +138,52 @@ export default function App() {
     };
   }, [activeTab]);
 
-  const loadDefaultChannels = () => {
-    setChannels(DEFAULT_CHANNELS);
-    localStorage.setItem(LOCAL_CHANNELS_KEY, JSON.stringify(DEFAULT_CHANNELS));
-    if (DEFAULT_CHANNELS.length > 0) {
-      setSelectedChannelId(DEFAULT_CHANNELS[0].id);
+  const seedDefaultChannelsToFirestore = async () => {
+    try {
+      for (const chan of DEFAULT_CHANNELS) {
+        const docRef = doc(db, 'channels', chan.id);
+        await setDoc(docRef, chan);
+      }
+    } catch (error) {
+      console.error('Failed to seed default channels into Firestore:', error);
     }
   };
 
-  const handleUpdateChannels = (updatedList: Channel[]) => {
-    setChannels(updatedList);
-    localStorage.setItem(LOCAL_CHANNELS_KEY, JSON.stringify(updatedList));
-    // Fallback if current active selected stream gets deleted
-    if (updatedList.length > 0 && !updatedList.some(c => c.id === selectedChannelId)) {
-      setSelectedChannelId(updatedList[0].id);
+  const handleUpdateChannels = async (updatedList: Channel[]) => {
+    try {
+      const previousIds = channels.map(c => c.id);
+      const updatedIds = updatedList.map(c => c.id);
+      const deletedIds = previousIds.filter(id => !updatedIds.includes(id));
+
+      // 1. Delete removed channels from Firestore
+      for (const id of deletedIds) {
+        await deleteDoc(doc(db, 'channels', id));
+      }
+
+      // 2. Add or update active channel definitions in Firestore
+      for (const chan of updatedList) {
+        await setDoc(doc(db, 'channels', chan.id), chan);
+      }
+
+      // Fallback if current active selected stream gets deleted
+      if (updatedList.length > 0 && !updatedList.some(c => c.id === selectedChannelId)) {
+        setSelectedChannelId(updatedList[0].id);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'channels');
     }
   };
 
-  const handleResetChannels = () => {
+  const handleResetChannels = async () => {
     if (window.confirm('Do you want to reset channel database to default streams? This will wipe your custom URLs.')) {
-      loadDefaultChannels();
+      try {
+        for (const chan of channels) {
+          await deleteDoc(doc(db, 'channels', chan.id));
+        }
+        await seedDefaultChannelsToFirestore();
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'channels');
+      }
     }
   };
 

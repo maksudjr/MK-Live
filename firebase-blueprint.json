@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "Channel": {
+      "title": "Channel",
+      "description": "Represents a television broadcast channel with stream URL, current show info, and guide events.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "V4 UUID or custom handle unique ID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the TV channel."
+        },
+        "logo": {
+          "type": "string",
+          "description": "Display icon representation typically an emoji."
+        },
+        "streamUrl": {
+          "type": "string",
+          "description": "Relative or fully-qualified HLS stream pathway ending in m3u8."
+        },
+        "category": {
+          "type": "string",
+          "description": "Filtering category group (e.g. Sports, News, Cartoons, Others)."
+        },
+        "currentShow": {
+          "type": "string",
+          "description": "Title of the active on-air show."
+        },
+        "currentShowTime": {
+          "type": "string",
+          "description": "Time indicator of the broadcast show status."
+        },
+        "nextShow": {
+          "type": "string",
+          "description": "Title of the preceding upcoming schedule event."
+        },
+        "guide": {
+          "type": "array",
+          "description": "Array of GuideEvent schedules of upcoming TV shows."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "streamUrl",
+        "category"
+      ]
+    }
+  },
+  "firestore": {
+    "channels/{channelId}": {
+      "schema": "Channel",
+      "description": "Collection of global TV channels accessible and editable by admin-level screens."
+    }
+  }
+}
