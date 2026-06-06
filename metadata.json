@@ -1,0 +1,6 @@
+{
+  "name": "MK LIVE",
+  "description": "A high-performance sports live TV player with real-time stream switching, integrated channel guides, admin customization, and user settings personalized for Android.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
