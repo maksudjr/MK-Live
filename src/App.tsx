@@ -23,7 +23,6 @@ export default function App() {
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [utcTime, setUtcTime] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'home' | 'admin' | 'settings'>('home');
-  const [userInteracting, setUserInteracting] = useState<boolean>(true);
   const [settings, setSettings] = useState<UserSettings>({
     favorites: [],
     theme: 'dark',
@@ -70,14 +69,9 @@ export default function App() {
         dbChannels.push(doc.data() as Channel);
       });
 
-      if (dbChannels.length === 0) {
-        // If the workspace DB is completely empty (e.g., initial start), auto-seed with defaults
-        seedDefaultChannelsToFirestore();
-      } else {
-        // Keep channels sorted alphabetically by name to ensure stable view order
-        dbChannels.sort((a, b) => a.name.localeCompare(b.name));
-        setChannels(dbChannels);
-      }
+      // Keep channels sorted alphabetically by name to ensure stable view order
+      dbChannels.sort((a, b) => a.name.localeCompare(b.name));
+      setChannels(dbChannels);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'channels');
     });
@@ -91,52 +85,6 @@ export default function App() {
       setSelectedChannelId(channels[0].id);
     }
   }, [channels, selectedChannelId]);
-
-  // Screen interaction monitoring to support immersive auto-hide UI during player viewing
-  useEffect(() => {
-    if (activeTab !== 'home') {
-      setUserInteracting(true);
-      return;
-    }
-
-    let isMouseMoving = false;
-    let fallbackTimer: NodeJS.Timeout;
-
-    const resetTimer = () => {
-      setUserInteracting(true);
-      clearTimeout(fallbackTimer);
-      fallbackTimer = setTimeout(() => {
-        setUserInteracting(false);
-      }, 3500); // Hide UI elements after 3.5 seconds of absolute no-input activity
-    };
-
-    const handleMouseMove = () => {
-      // Throttle mousemove calls slightly so we don't trigger constant heavy re-renders
-      if (!isMouseMoving) {
-        isMouseMoving = true;
-        resetTimer();
-        setTimeout(() => {
-          isMouseMoving = false;
-        }, 200);
-      }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mousedown', resetTimer);
-    window.addEventListener('touchstart', resetTimer);
-    window.addEventListener('keydown', resetTimer);
-
-    // Initial countdown triggers when user enters home player tab
-    resetTimer();
-
-    return () => {
-      clearTimeout(fallbackTimer);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mousedown', resetTimer);
-      window.removeEventListener('touchstart', resetTimer);
-      window.removeEventListener('keydown', resetTimer);
-    };
-  }, [activeTab]);
 
   const seedDefaultChannelsToFirestore = async () => {
     try {
@@ -226,8 +174,8 @@ export default function App() {
       id="mklive-dashboard-app"
       className={`h-screen flex flex-col justify-between overflow-hidden transition-colors duration-300 bg-slate-950`}
     >
-      {/* Dynamic Header (Geometric Balance style) with auto-hide support */}
-      <header className={`shrink-0 h-16 flex items-center justify-between px-4 bg-slate-900/80 border-b border-slate-850 z-40 transition-all duration-300 ${!userInteracting ? 'opacity-0 h-0 border-b-0 overflow-hidden pointer-events-none' : 'opacity-100'}`}>
+      {/* Dynamic Header (Geometric Balance style) */}
+      <header className="shrink-0 h-16 flex items-center justify-between px-4 bg-slate-900/80 border-b border-slate-850 z-40 transition-all duration-300 opacity-100">
         <div className="flex items-center gap-3">
           {/* Logo element matches high-contrast sport styling */}
           <div className="w-8 h-8 bg-blue-600 rounded-sm flex items-center justify-center font-black text-xl italic text-white shadow-lg">
@@ -295,7 +243,7 @@ export default function App() {
                     <Radio className="w-10 h-10 text-slate-500 mb-2 animate-pulse" />
                     <h3 className="text-xs font-bold text-slate-400">No Channels Available</h3>
                     <p className="text-[10px] text-slate-500 max-w-xs mt-1">
-                      Please enter a custom stream URL or import an M3U playlist in the Admin tab.
+                      Please enter a custom stream URL, import an M3U playlist, or click Reset Database in the Admin panel.
                     </p>
                   </div>
                 )}
@@ -354,8 +302,8 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Floating Android styled Nav Toolbar with auto-hide support */}
-      <nav className={`shrink-0 bg-slate-950 border-t border-slate-850 px-5 py-2 z-40 transition-all duration-300 ${!userInteracting ? 'opacity-0 h-0 py-0 border-t-0 overflow-hidden pointer-events-none' : 'opacity-100'}`}>
+      {/* Floating Android styled Nav Toolbar */}
+      <nav className="shrink-0 bg-slate-950 border-t border-slate-850 px-5 py-2 z-40 transition-all duration-300 opacity-100">
         <div className="max-w-md mx-auto flex items-center justify-around">
           
           {/* Home Player Tab */}

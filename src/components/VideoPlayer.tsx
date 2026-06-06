@@ -41,6 +41,46 @@ export default function VideoPlayer({
   const [autoReduceNote, setAutoReduceNote] = useState<string>('');
   const [stallCount, setStallCount] = useState<number>(0);
   const [_, startTransition] = useTransition();
+  const [controlsVisible, setControlsVisible] = useState<boolean>(true);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Controls overlay auto-hide logic after 5 seconds of active playback
+  useEffect(() => {
+    const resetControlsTimer = () => {
+      setControlsVisible(true);
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+      if (isPlaying) {
+        controlsTimeoutRef.current = setTimeout(() => {
+          setControlsVisible(false);
+          setShowQualityMenu(false);
+        }, 5000);
+      }
+    };
+
+    resetControlsTimer();
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleInteraction = () => {
+      resetControlsTimer();
+    };
+
+    container.addEventListener('mousemove', handleInteraction);
+    container.addEventListener('mousedown', handleInteraction);
+    container.addEventListener('touchstart', handleInteraction);
+
+    return () => {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+      container.removeEventListener('mousemove', handleInteraction);
+      container.removeEventListener('mousedown', handleInteraction);
+      container.removeEventListener('touchstart', handleInteraction);
+    };
+  }, [isPlaying]);
 
   // Automatically monitor native fullscreen switches to unlock orientation on exit
   useEffect(() => {
@@ -434,7 +474,7 @@ export default function VideoPlayer({
     <div 
       id="sports-player-container text-sans" 
       ref={containerRef}
-      className="relative w-full aspect-video bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden group flex flex-col justify-between"
+      className={`relative w-full aspect-video bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden group flex flex-col justify-between transition-all duration-300 ${controlsVisible ? 'cursor-default' : 'cursor-none'}`}
     >
       {/* Video stream element */}
       <video
@@ -475,18 +515,18 @@ export default function VideoPlayer({
         </div>
       )}
 
-      {/* Mini Player Metadata Header (Always Visible) */}
-      <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none z-10 font-sans">
+      {/* Mini Player Metadata Header */}
+      <div className={`absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none z-10 font-sans transition-all duration-300 ${controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
         <div className="flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md border border-slate-850 px-2 py-1 rounded-md">
           <ChannelLogo logo={channel.logo} name={channel.name} className="w-5.5 h-5.5 object-contain rounded-xs" fallbackSize="text-xs" />
           <span className="text-[11px] font-bold text-white tracking-wider truncate max-w-[120px]">
             {channel.name}
           </span>
           <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse ml-1" />
-          <span className="text-[9px] font-bold text-blue-400 font-mono tracking-widest">LIVE</span>
+          <span className="text-[9px] font-bold text-blue-400 font-mono tracking-widest font-mono tracking-widest">LIVE</span>
         </div>
 
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className={`flex items-center gap-2 ${controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           <span className="text-[9px] font-mono text-slate-300 bg-slate-950/80 backdrop-blur-md border border-slate-800 px-1.5 py-0.5 rounded">
             {streamMeta.resolution}
           </span>
@@ -501,8 +541,8 @@ export default function VideoPlayer({
         </div>
       </div>
 
-      {/* Control Bar (Fades in over hover on desktop, always visible on mobile/Android layout at bottom) */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent pt-8 pb-3 px-3 flex flex-col gap-2 opacity-100 transition-opacity duration-300">
+      {/* Control Bar (Auto Hide after 5 seconds of active playback) */}
+      <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent pt-8 pb-3 px-3 flex flex-col gap-2 transition-all duration-300 z-15 ${controlsVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
         {/* Action Controls Line */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
