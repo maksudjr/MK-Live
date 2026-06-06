@@ -1,7 +1,6 @@
 import { useState, useTransition } from 'react';
 import { 
-  Search, Heart, Watch, Radio, 
-  ChevronRight, AlertCircle 
+  Search, Heart, Radio, AlertCircle 
 } from 'lucide-react';
 import { Channel } from '../types';
 import ChannelLogo from './ChannelLogo';
@@ -108,56 +107,60 @@ export default function ChannelGuide({
       {/* Main Contents Lists (Saves height, scrolls cleanly inside viewport) */}
       <div className={`flex-grow overflow-y-auto p-3 ${getScaleClasses()}`}>
         {/* Channels Scroll grid */}
-        <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-2">
           {filteredChannels.map((chan) => {
             const isSelected = chan.id === selectedChannelId;
             const isFav = favorites.includes(chan.id);
             return (
               <div
-                id={`channel-card-${chan.id}`}
+                id={`channel-grid-item-${chan.id}`}
                 key={chan.id}
                 onClick={() => onSelectChannel(chan.id)}
-                className={`flex items-center justify-between p-2.5 rounded-sm border transition cursor-pointer relative overflow-hidden ${isSelected ? 'bg-slate-900 border-blue-500/50 shadow-md shadow-blue-500/5 text-white' : 'bg-slate-900/40 border-slate-850 hover:bg-slate-900/60 text-slate-300'}`}
+                className={`relative flex flex-col items-center justify-center p-2 rounded border transition-all cursor-pointer select-none ${isSelected ? 'bg-blue-600/10 border-blue-500 shadow-md shadow-blue-500/10 text-white' : 'bg-slate-900/40 border-slate-850 hover:bg-slate-900/80 text-slate-300'}`}
               >
-                {/* Active playing left border indicator */}
+                {/* Active indicator bar */}
                 {isSelected && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600" />
+                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-blue-500" />
                 )}
 
-                <div className="flex items-center gap-3 overflow-hidden min-w-0">
-                  <div className="w-8 h-8 flex items-center justify-center bg-slate-950 border border-slate-800 rounded-sm shrink-0">
-                    <ChannelLogo logo={chan.logo} name={chan.name} className="w-6 h-6 object-contain rounded-sm" fallbackSize="text-sm" />
-                  </div>
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="font-bold text-xs truncate max-w-[140px]">{chan.name}</h4>
-                      <span className="text-[8px] font-mono px-1 bg-slate-950 text-blue-400 rounded-sm border border-slate-800 shrink-0">
-                        {chan.category}
-                      </span>
-                    </div>
-                  </div>
+                {/* Hover/active indicator dots or tags */}
+                {isSelected ? (
+                  <span className="absolute top-1 left-1.5 text-[6px] font-mono tracking-widest text-blue-400 font-extrabold flex items-center gap-0.5 uppercase">
+                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-ping inline-block" /> playing
+                  </span>
+                ) : (
+                  <span className="absolute top-1 left-1.5 text-[6px] font-mono tracking-wider text-slate-500 uppercase">
+                    {chan.category}
+                  </span>
+                )}
+
+                {/* Star Favorites toggle on top right */}
+                <button
+                  id={`channel-fav-toggle-${chan.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFavorite(chan.id);
+                  }}
+                  className="absolute top-0.5 right-0.5 p-1 text-slate-600 hover:text-blue-400 hover:scale-110 transition z-10"
+                >
+                  <Heart className={`w-3 h-3 ${isFav ? 'text-blue-400 fill-blue-400 font-bold' : 'text-slate-600'}`} />
+                </button>
+
+                {/* Logo wrapper */}
+                <div className="w-10 h-10 mt-3.5 mb-1 bg-slate-950 border border-slate-800 rounded-sm flex items-center justify-center shrink-0">
+                  <ChannelLogo logo={chan.logo} name={chan.name} className="w-7 h-7 object-contain rounded-xs" fallbackSize="text-xs" />
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  {/* Star Favorites toggle inside row */}
-                  <button
-                    id={`channel-fav-toggle-${chan.id}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleFavorite(chan.id);
-                    }}
-                    className="p-1.5 hover:text-blue-400 transition"
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${isFav ? 'text-blue-400 fill-blue-400' : 'text-slate-600'}`} />
-                  </button>
-                  <ChevronRight className="w-4.5 h-4.5 text-slate-600" />
-                </div>
+                {/* Title */}
+                <h4 className="font-extrabold text-[10px] tracking-tight truncate w-full text-center leading-tight">
+                  {chan.name}
+                </h4>
               </div>
             );
           })}
 
           {filteredChannels.length === 0 && (
-            <div className="text-center py-10 bg-slate-900/20 border border-slate-800 rounded-sm p-4">
+            <div className="col-span-full text-center py-10 bg-slate-900/20 border border-slate-800 rounded-sm p-4">
               <AlertCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
               <h4 className="text-xs font-bold text-slate-400">No Channels Found</h4>
               <p className="text-[10px] text-slate-500 max-w-xs mx-auto leading-relaxed mt-1">

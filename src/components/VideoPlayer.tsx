@@ -542,7 +542,7 @@ export default function VideoPlayer({
       </div>
 
       {/* Control Bar (Auto Hide after 5 seconds of active playback) */}
-      <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent pt-8 pb-3 px-3 flex flex-col gap-2 transition-all duration-300 z-15 ${controlsVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
+      <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent pt-8 pb-3 px-3 flex flex-col gap-2 transition-all duration-300 z-20 ${controlsVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
         {/* Action Controls Line */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -552,7 +552,7 @@ export default function VideoPlayer({
               onClick={togglePlay}
               className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-500 hover:scale-105 active:scale-95 transition shadow-md"
             >
-              {isPlaying ? <Pause className="w-4 h-4 fill-white text-transparent" /> : <Play className="w-4 h-4 fill-white text-transparent ml-0.5" />}
+              {isPlaying ? <Pause className="w-4 h-4 fill-white text-white" /> : <Play className="w-4 h-4 fill-white text-white ml-0.5" />}
             </button>
 
             {/* Mute and Volume slider */}
