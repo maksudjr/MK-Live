@@ -48,12 +48,30 @@
         "streamUrl",
         "category"
       ]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Represents unified config settings for the live app.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Advisory text alert content."
+        }
+      },
+      "required": [
+        "text"
+      ]
     }
   },
   "firestore": {
     "channels/{channelId}": {
       "schema": "Channel",
       "description": "Collection of global TV channels accessible and editable by admin-level screens."
+    },
+    "app_configs/{configId}": {
+      "schema": "AppConfig",
+      "description": "Global application tuning values and warning notifications."
     }
   }
 }

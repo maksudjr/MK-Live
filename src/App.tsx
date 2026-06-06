@@ -23,6 +23,7 @@ export default function App() {
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [utcTime, setUtcTime] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'home' | 'admin' | 'settings'>('home');
+  const [performanceAlert, setPerformanceAlert] = useState<string>('Use Wifi connection or High speed connection for best performance.');
   const [settings, setSettings] = useState<UserSettings>({
     favorites: [],
     theme: 'dark',
@@ -74,6 +75,27 @@ export default function App() {
       setChannels(dbChannels);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'channels');
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Subscribe to real-time changes in performance alert configuration
+  useEffect(() => {
+    const alertDocRef = doc(db, 'app_configs', 'performance_alert');
+    const unsubscribe = onSnapshot(alertDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && typeof data.text === 'string') {
+          setPerformanceAlert(data.text);
+        }
+      } else {
+        // Automatically publish the default alert if none exists
+        setDoc(alertDocRef, { text: 'Use Wifi connection or High speed connection for best performance.' })
+          .catch(err => console.error('Error auto-seeding performance alert doc:', err));
+      }
+    }, (error) => {
+      console.warn('Error listening to app performance alert configs:', error);
     });
 
     return () => unsubscribe();
@@ -132,6 +154,15 @@ export default function App() {
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, 'channels');
       }
+    }
+  };
+
+  const handleUpdatePerformanceAlert = async (newAlert: string) => {
+    try {
+      const alertDocRef = doc(db, 'app_configs', 'performance_alert');
+      await setDoc(alertDocRef, { text: newAlert });
+    } catch (error) {
+       handleFirestoreError(error, OperationType.WRITE, 'app_configs/performance_alert');
     }
   };
 
@@ -231,6 +262,14 @@ export default function App() {
             >
               {/* Media Player wrapper - Stays pinned at top on small mobile, side during desktop */}
               <div className="w-full md:w-[60%] shrink-0 p-3 bg-slate-950/40 flex flex-col justify-center border-b md:border-b-0 md:border-r border-slate-800">
+                {performanceAlert && (
+                  <div className="mb-3 px-3.5 py-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded flex items-center gap-2.5 shadow-sm">
+                    <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-yellow-500 animate-pulse" />
+                    <p className="text-[10px] font-bold font-sans leading-tight tracking-normal text-yellow-500/95">
+                      {performanceAlert}
+                    </p>
+                  </div>
+                )}
                 {activePlayingChannel ? (
                   <VideoPlayer
                     channel={activePlayingChannel}
@@ -278,6 +317,8 @@ export default function App() {
                 onUpdateChannels={handleUpdateChannels}
                 onResetChannels={handleResetChannels}
                 onClose={() => startLayoutTransition(() => setActiveTab('home'))}
+                performanceAlert={performanceAlert}
+                onUpdatePerformanceAlert={handleUpdatePerformanceAlert}
               />
             </motion.div>
           )}

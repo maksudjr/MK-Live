@@ -1,7 +1,7 @@
-import React, { useState, useTransition } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { 
   Plus, Trash2, Key, Database, RefreshCw, Sparkles, 
-  CheckCircle, HelpCircle, Code, ListPlus, X 
+  CheckCircle, HelpCircle, Code, ListPlus, X, ShieldAlert
 } from 'lucide-react';
 import { Channel, GuideEvent } from '../types';
 import ChannelLogo from './ChannelLogo';
@@ -11,19 +11,31 @@ interface AdminPanelProps {
   onUpdateChannels: (updated: Channel[]) => void;
   onResetChannels: () => void;
   onClose?: () => void;
+  performanceAlert: string;
+  onUpdatePerformanceAlert: (newAlert: string) => Promise<void>;
 }
 
 export default function AdminPanel({ 
   channels, 
   onUpdateChannels, 
   onResetChannels,
-  onClose
+  onClose,
+  performanceAlert,
+  onUpdatePerformanceAlert
 }: AdminPanelProps) {
   // Secured credential gate
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
   const [adminId, setAdminId] = useState<string>('');
   const [passkey, setPasskey] = useState<string>('');
   const [passError, setPassError] = useState<string>('');
+
+  // Performance Alert State
+  const [alertText, setAlertText] = useState<string>(performanceAlert);
+
+  // Sync internal alert state with props if it updates on other tabs
+  useEffect(() => {
+    setAlertText(performanceAlert);
+  }, [performanceAlert]);
 
   // Single Manual Channel Form State
   const [manualName, setManualName] = useState<string>('');
@@ -86,6 +98,19 @@ export default function AdminPanel({
         status: 'upcoming'
       }
     ];
+  };
+
+  const handleSaveAlert = async () => {
+    if (!alertText.trim()) {
+      showFeedback('error', 'Performance alert text cannot be empty.');
+      return;
+    }
+    try {
+      await onUpdatePerformanceAlert(alertText.trim());
+      showFeedback('success', 'Performance notice updated successfully in real-time across all servers & clients!');
+    } catch (err: any) {
+      showFeedback('error', `Failed to update alert: ${err.message || err}`);
+    }
   };
 
   // Create single manual channel
@@ -341,6 +366,35 @@ export default function AdminPanel({
             </div>
           )}
 
+          {/* Performance Advisory Banner Edit Panel */}
+          <div className="bg-slate-900 border border-slate-800 rounded-sm p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4.5 h-4.5 text-yellow-500" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Performance Advisory Warning Alert</h3>
+            </div>
+            <p className="text-slate-400 text-xs leading-relaxed font-sans">
+              Modify the alert notice shown in the main streaming view. All viewers on live servers and TV web views will see this alert update in real-time.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                id="admin-alert-text-input"
+                type="text"
+                value={alertText}
+                onChange={(e) => setAlertText(e.target.value)}
+                placeholder="Notice text (e.g. Use Wifi connection or High speed connection for best performance.)"
+                className="flex-grow bg-slate-950 border border-slate-850 rounded-sm px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-yellow-500/50"
+              />
+              <button
+                id="admin-save-alert-btn"
+                type="button"
+                onClick={handleSaveAlert}
+                className="bg-yellow-600 hover:bg-yellow-500 text-slate-950 font-black text-xs px-5 py-2 rounded-sm transition whitespace-nowrap active:scale-95"
+              >
+                Save Announcement
+              </button>
+            </div>
+          </div>
+
           {/* M3U Fast Guide Auto-Populate Parser (requested: "Admin can place channel url m3u8 links to populate the guide data automatically.") */}
           <div className="bg-slate-900 border border-slate-800 rounded-sm p-5 space-y-4">
             <div className="flex items-center justify-between font-sans">
@@ -447,9 +501,14 @@ export default function AdminPanel({
 
           {/* Active channels database list */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Station Catalog ({channels.length} Channels)
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Station Catalog ({channels.length} Channels)
+              </h3>
+              <span className="text-[10px] font-medium text-amber-500/85 bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10 inline-block font-sans">
+                ⚠️ Information properties are view-only. To modify details, delete and reinsert the stream.
+              </span>
+            </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-sm overflow-hidden divide-y divide-slate-850 font-sans">
               {channels.map((chan) => (
