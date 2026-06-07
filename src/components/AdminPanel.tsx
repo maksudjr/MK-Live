@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { 
   Plus, Trash2, Key, Database, RefreshCw, Sparkles, 
-  CheckCircle, HelpCircle, Code, ListPlus, X, ShieldAlert
+  CheckCircle, HelpCircle, Code, ListPlus, X, ShieldAlert, Upload, Edit
 } from 'lucide-react';
 import { Channel, GuideEvent } from '../types';
 import ChannelLogo from './ChannelLogo';
@@ -22,7 +22,7 @@ export default function AdminPanel({
   onClose,
   performanceAlert,
   onUpdatePerformanceAlert
-}: AdminPanelProps) {
+ }: AdminPanelProps) {
   // Secured credential gate
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
   const [adminId, setAdminId] = useState<string>('');
@@ -37,17 +37,51 @@ export default function AdminPanel({
     setAlertText(performanceAlert);
   }, [performanceAlert]);
 
+  // Channel Editing State Helper
+  const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
+
   // Single Manual Channel Form State
   const [manualName, setManualName] = useState<string>('');
   const [manualUrl, setManualUrl] = useState<string>('');
   const [manualLogo, setManualLogo] = useState<string>('⚽');
   const [manualCategory, setManualCategory] = useState<string>('Sports');
+  const [customCategory, setCustomCategory] = useState<string>('');
+
+  // Compute dynamic existing categories to populate the dropdown selection
+  const existingCategories = Array.from(
+    new Set(
+      channels
+        .map((c) => c.category)
+        .filter((cat): cat is string => typeof cat === 'string' && cat.trim() !== '')
+    )
+  );
+  const coreCategories = ['Sports', 'News', 'Cartoons', 'Others'];
+  const allDropdownCategories = Array.from(new Set([...coreCategories, ...existingCategories]));
 
   // M3U Playlist Parser input
   const [m3uText, setM3uText] = useState<string>('');
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [_, startTransition] = useTransition();
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 1024) {
+      showFeedback('error', 'Image size should be below 1MB to ensure memory storage optimization.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setManualLogo(reader.result);
+        showFeedback('success', 'Custom logo image encoded & attached successfully!');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Handle Credentials Unlock
   const handleUnlock = (e: React.FormEvent) => {
@@ -113,7 +147,7 @@ export default function AdminPanel({
     }
   };
 
-  // Create single manual channel
+  // Create single manual channel or save changes
   const handleAddManualChannel = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualName.trim() || !manualUrl.trim()) {
@@ -121,27 +155,83 @@ export default function AdminPanel({
       return;
     }
 
-    const newChannel: Channel = {
-      id: `ch-manual-${Date.now()}`,
-      name: manualName.trim(),
-      logo: manualLogo || '🏆',
-      streamUrl: manualUrl.trim(),
-      category: manualCategory,
-      currentShow: 'Live Broadcast',
-      currentShowTime: 'Direct',
-      nextShow: 'Upcoming Event',
-      guide: []
-    };
+    const categoryToSave = (manualCategory === 'Custom' || !allDropdownCategories.includes(manualCategory))
+      ? (customCategory.trim() || 'Others')
+      : manualCategory;
 
-    startTransition(() => {
-      onUpdateChannels([...channels, newChannel]);
-    });
-    
+    if (editingChannelId) {
+      // Editing Mode
+      const updated = channels.map(c => {
+        if (c.id === editingChannelId) {
+          return {
+            ...c,
+            name: manualName.trim(),
+            streamUrl: manualUrl.trim(),
+            category: categoryToSave,
+            logo: manualLogo
+          };
+        }
+        return c;
+      });
+
+      startTransition(() => {
+        onUpdateChannels(updated);
+      });
+
+      setEditingChannelId(null);
+      showFeedback('success', 'Channel details updated successfully!');
+    } else {
+      // Creation Mode
+      const newChannel: Channel = {
+        id: `ch-manual-${Date.now()}`,
+        name: manualName.trim(),
+        logo: manualLogo || '🏆',
+        streamUrl: manualUrl.trim(),
+        category: categoryToSave,
+        currentShow: 'Live Broadcast',
+        currentShowTime: 'Direct',
+        nextShow: 'Upcoming Event',
+        guide: []
+      };
+
+      startTransition(() => {
+        onUpdateChannels([...channels, newChannel]);
+      });
+      showFeedback('success', `"${newChannel.name}" added successfully!`);
+    }
+
     // Clear Form fields
     setManualName('');
     setManualUrl('');
     setManualLogo('⚽');
-    showFeedback('success', `"${newChannel.name}" added successfully!`);
+    setCustomCategory('');
+  };
+
+  const startEditingChannel = (chan: Channel) => {
+    setEditingChannelId(chan.id);
+    setManualName(chan.name);
+    setManualUrl(chan.streamUrl);
+    setManualLogo(chan.logo);
+    
+    const cat = chan.category || 'Sports';
+    if (!allDropdownCategories.includes(cat)) {
+      setManualCategory('Custom');
+      setCustomCategory(cat);
+    } else {
+      setManualCategory(cat);
+      setCustomCategory('');
+    }
+    showFeedback('success', `Loaded "${chan.name}" details for editing.`);
+  };
+
+  const cancelEditing = () => {
+    setEditingChannelId(null);
+    setManualName('');
+    setManualUrl('');
+    setManualLogo('⚽');
+    setManualCategory('Sports');
+    setCustomCategory('');
+    showFeedback('success', 'Cancelled channel editing.');
   };
 
   // Parse paste-able M3U playlist text
@@ -426,11 +516,17 @@ export default function AdminPanel({
             </button>
           </div>
 
-          {/* Form to Add Single Station */}
+          {/* Form to Add / Edit Single Station */}
           <div className="bg-slate-900 border border-slate-800 rounded-sm p-5">
             <div className="flex items-center gap-2 mb-4">
-              <Plus className="w-4.5 h-4.5 text-blue-500" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Manual Channel Insertion</h3>
+              {editingChannelId ? (
+                <Edit className="w-4.5 h-4.5 text-blue-500" />
+              ) : (
+                <Plus className="w-4.5 h-4.5 text-blue-500" />
+              )}
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                {editingChannelId ? 'Edit Sourcing Station Details' : 'Manual Channel Insertion'}
+              </h3>
             </div>
 
             <form onSubmit={handleAddManualChannel} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -466,35 +562,106 @@ export default function AdminPanel({
                   id="admin-select-category"
                   value={manualCategory}
                   onChange={(e) => setManualCategory(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-sm px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
+                  className="w-full bg-slate-950 border border-slate-850 rounded-sm px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50 cursor-pointer"
                 >
-                  <option value="Sports">🏆 Sports</option>
-                  <option value="News">📰 News</option>
-                  <option value="Cartoons">🧸 Cartoons</option>
-                  <option value="Others">🌐 Others</option>
+                  {allDropdownCategories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      🏷️ {cat}
+                    </option>
+                  ))}
+                  <option value="Custom">✨ + Create Custom Category...</option>
                 </select>
+
+                {(manualCategory === 'Custom' || !allDropdownCategories.includes(manualCategory)) && (
+                  <div className="mt-2 space-y-1">
+                    <label className="text-[10px] font-medium text-slate-400 block mt-1">New Custom Category Name</label>
+                    <input
+                      id="admin-input-custom-category"
+                      type="text"
+                      required
+                      placeholder="e.g. Football, Movies, Kids, etc."
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-850 rounded-sm px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-slate-400">Channel Logo (Emoji or Image URL)</label>
-                <input
-                  id="admin-input-logo"
-                  type="text"
-                  placeholder="e.g. ⚽, 🏆 or https://server.com/logo.png"
-                  value={manualLogo}
-                  onChange={(e) => setManualLogo(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-sm px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
-                />
+              <div className="md:col-span-2 bg-slate-950/40 p-3 rounded border border-slate-850 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Station Logo / Icon</label>
+                  <span className="text-[9px] text-slate-500 font-sans">Support emoji, image URL, or direct file upload</span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                  {/* Current Preview */}
+                  <div className="sm:col-span-2 flex flex-col items-center justify-center h-12 w-12 bg-slate-950 border border-slate-800 rounded mx-auto sm:mx-0 shrink-0">
+                    <ChannelLogo logo={manualLogo} name="Preview" className="w-8 h-8 object-contain rounded-xs" fallbackSize="text-base" />
+                    <span className="text-[8px] text-slate-500 font-mono mt-0.5 uppercase">Preview</span>
+                  </div>
+
+                  {/* Text Input (Url or emoji) */}
+                  <div className="sm:col-span-6 space-y-1">
+                    <input
+                      id="admin-input-logo"
+                      type="text"
+                      placeholder="e.g. ⚽, 🏆 or https://domain.com/logo.png"
+                      value={manualLogo}
+                      onChange={(e) => setManualLogo(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-850 rounded-sm px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50 placeholder-slate-600"
+                    />
+                    <p className="text-[9px] text-slate-500">Edit values above or pick a local image file to auto-encode.</p>
+                  </div>
+
+                  {/* Direct File Upload button */}
+                  <div className="sm:col-span-4 flex flex-col justify-center">
+                    <label 
+                      htmlFor="logo-file-picker" 
+                      className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-sm text-xs font-bold cursor-pointer transition select-none text-center"
+                    >
+                      <Upload className="w-4 h-4 text-blue-400" />
+                      Upload Logo File
+                    </label>
+                    <input
+                      id="logo-file-picker"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="md:col-span-2 pt-2">
-                <button
-                  id="admin-submit-channel-btn"
-                  type="submit"
-                  className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 hover:border-slate-500 border border-slate-800 text-white text-xs font-semibold py-2.5 rounded-sm transition"
-                >
-                  <Plus className="w-4 h-4 text-blue-400" /> Insert Manual Channel
-                </button>
+              <div className="md:col-span-2 pt-2 flex flex-col sm:flex-row gap-2">
+                {editingChannelId ? (
+                  <>
+                    <button
+                      id="admin-submit-channel-btn"
+                      type="submit"
+                      className="flex-grow flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold py-2.5 rounded-sm transition"
+                    >
+                      <CheckCircle className="w-4 h-4 text-white" /> Save Channel Changes
+                    </button>
+                    <button
+                      id="admin-cancel-edit-btn"
+                      type="button"
+                      onClick={cancelEditing}
+                      className="bg-slate-800 hover:bg-slate-700 text-rose-450 hover:text-rose-300 text-xs font-semibold py-2.5 px-4 rounded-sm transition font-sans border border-slate-700"
+                    >
+                      Cancel Edit
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    id="admin-submit-channel-btn"
+                    type="submit"
+                    className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 hover:border-slate-500 border border-slate-800 text-white text-xs font-semibold py-2.5 rounded-sm transition"
+                  >
+                    <Plus className="w-4 h-4 text-blue-400" /> Insert Manual Channel
+                  </button>
+                )}
               </div>
             </form>
           </div>
@@ -505,8 +672,8 @@ export default function AdminPanel({
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Station Catalog ({channels.length} Channels)
               </h3>
-              <span className="text-[10px] font-medium text-amber-500/85 bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10 inline-block font-sans">
-                ⚠️ Information properties are view-only. To modify details, delete and reinsert the stream.
+              <span className="text-[10px] font-medium text-blue-400 bg-blue-500/5 px-2 py-0.5 rounded border border-blue-500/10 inline-block font-sans">
+                💡 Click the edit button to update channel name, stream links, logos, or categories.
               </span>
             </div>
 
@@ -532,14 +699,24 @@ export default function AdminPanel({
                     </div>
                   </div>
 
-                  <button
-                    id={`admin-delete-btn-${chan.id}`}
-                    onClick={() => removeChannel(chan.id)}
-                    className="p-2 bg-slate-950 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-800 rounded px-1.5 transition"
-                    title="Remove Station"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      id={`admin-edit-btn-${chan.id}`}
+                      onClick={() => startEditingChannel(chan)}
+                      className="p-2 bg-slate-950 hover:bg-blue-950 text-slate-400 hover:text-blue-400 border border-slate-800 rounded transition"
+                      title="Edit Channel Details"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      id={`admin-delete-btn-${chan.id}`}
+                      onClick={() => removeChannel(chan.id)}
+                      className="p-2 bg-slate-950 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-800 rounded transition"
+                      title="Remove Station"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
 

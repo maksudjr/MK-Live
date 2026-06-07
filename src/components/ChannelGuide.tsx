@@ -14,8 +14,6 @@ interface ChannelGuideProps {
   textScale: 'sm' | 'md' | 'lg';
 }
 
-const CATEGORIES = ['All', 'Sports', 'News', 'Cartoons', 'Others'];
-
 export default function ChannelGuide({
   channels,
   selectedChannelId,
@@ -28,6 +26,17 @@ export default function ChannelGuide({
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [showFavsOnly, setShowFavsOnly] = useState<boolean>(false);
   const [_, startTransition] = useTransition();
+
+  // Dynamic category calculations to ensure every category assigned to a channel appears
+  const existingCats = Array.from(
+    new Set(
+      channels
+        .map((c) => c.category)
+        .filter((cat): cat is string => typeof cat === 'string' && cat.trim() !== '')
+    )
+  );
+  const coreCats = ['Sports', 'News', 'Cartoons', 'Others'];
+  const CATEGORIES = ['All', ...Array.from(new Set([...coreCats, ...existingCats]))];
 
   // Selected channel details
   const currentChannel = channels.find(c => c.id === selectedChannelId) || channels[0];

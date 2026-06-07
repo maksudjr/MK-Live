@@ -1,6 +1,6 @@
 import { useState, useTransition } from 'react';
 import { 
-  Heart, Zap, LayoutDashboard, Sliders, Info, 
+  Zap, LayoutDashboard, Sliders, Info, 
   Settings, CheckCircle, Smartphone 
 } from 'lucide-react';
 import { Channel, UserSettings } from '../types';
@@ -27,16 +27,6 @@ export default function SettingsPanel({
       });
     });
     triggerSuccess('Setting saved successfully!');
-  };
-
-  const toggleFavorite = (chanId: string) => {
-    let newFavs = [...settings.favorites];
-    if (newFavs.includes(chanId)) {
-      newFavs = newFavs.filter(id => id !== chanId);
-    } else {
-      newFavs.push(chanId);
-    }
-    handleUpdate({ favorites: newFavs });
   };
 
   const triggerSuccess = (msg: string) => {
@@ -170,39 +160,7 @@ export default function SettingsPanel({
         </div>
       </div>
 
-      {/* Favorites Stream Channel Manager */}
-      <div className="bg-slate-900 border border-slate-800 rounded-sm p-4 space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-          <Heart className="w-4 h-4 text-blue-500" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Station Quick-access Favorites</h3>
-        </div>
-        <p className="text-slate-400 text-xs">Tap a star to toggle display priority in your sports television homepage.</p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1">
-          {channels.map((chan) => {
-            const isFav = settings.favorites.includes(chan.id);
-            return (
-              <div 
-                id={`settings-fav-${chan.id}`}
-                key={chan.id}
-                onClick={() => toggleFavorite(chan.id)}
-                className={`flex items-center justify-between p-2.5 rounded-sm border transition cursor-pointer ${isFav ? 'bg-blue-950/20 border-blue-500/20 text-white' : 'bg-slate-950/45 border-slate-850 hover:bg-slate-900/40 text-slate-400'}`}
-              >
-                <div className="flex items-center gap-2 min-w-0 pr-2">
-                  <span className="text-sm shrink-0">{chan.logo}</span>
-                  <span className="text-xs font-semibold truncate">{chan.name}</span>
-                </div>
-                <Heart className={`w-4 h-4 shrink-0 transition ${isFav ? 'text-blue-400 fill-blue-400' : 'text-slate-600 hover:text-white'}`} />
-              </div>
-            );
-          })}
-          {channels.length === 0 && (
-            <div className="col-span-full text-center py-6 text-slate-500 text-xs font-mono">
-              Configure channels in Admin Panel first.
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Developer Profile & Technical Notes */}
       <div className="bg-slate-900 border border-slate-850 rounded-sm p-3 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">

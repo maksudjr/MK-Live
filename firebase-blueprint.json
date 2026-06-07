@@ -57,11 +57,12 @@
         "text": {
           "type": "string",
           "description": "Advisory text alert content."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "General togglable configuration switch state."
         }
-      },
-      "required": [
-        "text"
-      ]
+      }
     }
   },
   "firestore": {

@@ -217,7 +217,7 @@ export default function App() {
               LIVE <span className="text-blue-500 font-extrabold text-[12px] uppercase">TV</span>
             </h1>
             <span className="text-[8px] uppercase tracking-wider text-slate-400 font-mono leading-none block">
-              Core V2.1 Player
+              By Maksudur Rahman.
             </span>
           </div>
         </div>
