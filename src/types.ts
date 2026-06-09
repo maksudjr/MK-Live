@@ -22,9 +22,10 @@ export interface Channel {
 
 export interface UserSettings {
   favorites: string[]; // Channel IDs
-  theme: 'dark' | 'amoled' | 'sporty';
+  theme: 'dark' | 'amoled' | 'sporty' | 'light' | 'green';
   bufferSize: number; // in seconds, e.g., 5, 10, 15
   lowLatency: boolean;
   streamQuality: 'auto' | 'high' | 'medium' | 'low';
   textScale: 'sm' | 'md' | 'lg';
+  language?: 'en' | 'bn';
 }

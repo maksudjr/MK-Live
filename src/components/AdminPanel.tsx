@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Channel, GuideEvent } from '../types';
 import ChannelLogo from './ChannelLogo';
+import { getTranslation, LanguageType } from '../translations';
 
 interface AdminPanelProps {
   channels: Channel[];
@@ -13,6 +14,7 @@ interface AdminPanelProps {
   onClose?: () => void;
   performanceAlert: string;
   onUpdatePerformanceAlert: (newAlert: string) => Promise<void>;
+  language?: LanguageType;
 }
 
 export default function AdminPanel({ 
@@ -21,7 +23,8 @@ export default function AdminPanel({
   onResetChannels,
   onClose,
   performanceAlert,
-  onUpdatePerformanceAlert
+  onUpdatePerformanceAlert,
+  language
  }: AdminPanelProps) {
   // Secured credential gate
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);

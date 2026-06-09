@@ -44,6 +44,30 @@
   --border-light: #0d1630;
 }
 
+/* Light Theme */
+.theme-light {
+  --app-bg: #f8fafc;
+  --panel-bg: #ffffff;
+  --panel-card: #f1f5f9;
+  --input-bg: #f1f5f9;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --border-color: #cbd5e1;
+  --border-light: #e2e8f0;
+}
+
+/* Green Theme */
+.theme-green {
+  --app-bg: #051e14;
+  --panel-bg: #0a2f1d;
+  --panel-card: #144a2f;
+  --input-bg: #02120b;
+  --text-main: #e8f5e9;
+  --text-muted: #4caf50;
+  --border-color: #1b5e20;
+  --border-light: #0d3c22;
+}
+
 /* Custom theme mapping utilities matching Tailwind guidelines */
 .theme-custom-bg {
   background-color: var(--app-bg);

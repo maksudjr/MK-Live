@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { Channel } from '../types';
 import ChannelLogo from './ChannelLogo';
+import { getTranslation, LanguageType } from '../translations';
 
 interface ChannelGuideProps {
   channels: Channel[];
@@ -12,6 +13,7 @@ interface ChannelGuideProps {
   favorites: string[];
   onToggleFavorite: (id: string) => void;
   textScale: 'sm' | 'md' | 'lg';
+  language?: LanguageType;
 }
 
 export default function ChannelGuide({
@@ -20,7 +22,8 @@ export default function ChannelGuide({
   onSelectChannel,
   favorites,
   onToggleFavorite,
-  textScale
+  textScale,
+  language
 }: ChannelGuideProps) {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -70,7 +73,7 @@ export default function ChannelGuide({
             <input
               id="guide-search-input"
               type="text"
-              placeholder="Search sports, champions, match events..."
+              placeholder={getTranslation('searchPlaceholder', language)}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full theme-custom-input border theme-custom-border-light rounded-sm pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
@@ -84,7 +87,7 @@ export default function ChannelGuide({
             className={`p-1.5 shrink-0 rounded-sm border transition flex items-center gap-1.5 ${showFavsOnly ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'theme-custom-panel theme-custom-border text-slate-400'}`}
           >
             <Heart className={`w-4 h-4 ${showFavsOnly ? 'fill-blue-400 text-blue-400' : ''}`} />
-            <span className="text-[10px] font-bold hidden sm:inline">Favorites</span>
+            <span className="text-[10px] font-bold hidden sm:inline">{getTranslation('favorites', language)}</span>
           </button>
         </div>
 
@@ -106,10 +109,10 @@ export default function ChannelGuide({
       {/* Title Header for Channel List (replacing multi-screen tabs) */}
       <div className="flex items-center justify-between px-4 py-2.5 theme-custom-panel border-b theme-custom-border shrink-0">
         <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-          <Radio className="w-3.5 h-3.5 text-blue-400" /> Active Stations
+          <Radio className="w-3.5 h-3.5 text-blue-400" /> {getTranslation('activeStations', language)}
         </span>
         <span className="text-[10px] font-mono text-slate-400 theme-custom-input px-2 py-0.5 border theme-custom-border rounded">
-          {filteredChannels.length} Streams
+          {filteredChannels.length} {getTranslation('streamsCount', language)}
         </span>
       </div>
 
@@ -135,7 +138,7 @@ export default function ChannelGuide({
                 {/* Hover/active indicator dots or tags */}
                 {isSelected ? (
                   <span className="absolute top-1 left-1.5 text-[6px] font-mono tracking-widest text-blue-400 font-extrabold flex items-center gap-0.5 uppercase">
-                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-ping inline-block" /> playing
+                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-ping inline-block" /> {language === 'bn' ? 'চলছে' : 'playing'}
                   </span>
                 ) : (
                   <span className="absolute top-1 left-1.5 text-[6px] font-mono tracking-wider text-slate-500 uppercase">
@@ -171,9 +174,9 @@ export default function ChannelGuide({
           {filteredChannels.length === 0 && (
             <div className="col-span-full text-center py-10 bg-slate-900/20 border border-slate-800 rounded-sm p-4">
               <AlertCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-              <h4 className="text-xs font-bold text-slate-400">No Channels Found</h4>
+              <h4 className="text-xs font-bold text-slate-400">{getTranslation('noChannels', language)}</h4>
               <p className="text-[10px] text-slate-500 max-w-xs mx-auto leading-relaxed mt-1">
-                Adjust active filter parameters, disable "Favorites", or add channels inside the Admin Panel.
+                {getTranslation('selectChannelToWatch', language)}
               </p>
             </div>
           )}

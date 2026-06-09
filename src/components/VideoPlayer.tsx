@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Channel } from '../types';
 import ChannelLogo from './ChannelLogo';
+import { getTranslation, LanguageType } from '../translations';
 
 interface VideoPlayerProps {
   channel: Channel;
@@ -14,6 +15,7 @@ interface VideoPlayerProps {
   streamQuality: 'auto' | 'high' | 'medium' | 'low';
   isPiP?: boolean;
   onTogglePiP?: () => void;
+  language?: LanguageType;
 }
 
 export default function VideoPlayer({ 
@@ -22,7 +24,8 @@ export default function VideoPlayer({
   bufferSize, 
   streamQuality,
   isPiP = false,
-  onTogglePiP
+  onTogglePiP,
+  language
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -44,6 +47,8 @@ export default function VideoPlayer({
   const [isAutoReducing, setIsAutoReducing] = useState<boolean>(false);
   const [autoReduceNote, setAutoReduceNote] = useState<string>('');
   const [stallCount, setStallCount] = useState<number>(0);
+  const [isNativePiP, setIsNativePiP] = useState<boolean>(false);
+  const [pipStatusMsg, setPipStatusMsg] = useState<string | null>(null);
   const [_, startTransition] = useTransition();
   const [controlsVisible, setControlsVisible] = useState<boolean>(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -104,6 +109,28 @@ export default function VideoPlayer({
       document.removeEventListener('fullscreenchange', onFullscreenChange);
     };
   }, []);
+
+  // Monitor native browser Picture-in-Picture event keys to update state
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const onEnterPiP = () => {
+      setIsNativePiP(true);
+    };
+
+    const onLeavePiP = () => {
+      setIsNativePiP(false);
+    };
+
+    video.addEventListener('enterpictureinpicture', onEnterPiP);
+    video.addEventListener('leavepictureinpicture', onLeavePiP);
+
+    return () => {
+      video.removeEventListener('enterpictureinpicture', onEnterPiP);
+      video.removeEventListener('leavepictureinpicture', onLeavePiP);
+    };
+  }, [channel.streamUrl]);
 
   // Load and play the stream
   useEffect(() => {
@@ -463,6 +490,37 @@ export default function VideoPlayer({
     }
   };
 
+  const handlePiPToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+
+    try {
+      // If already in native picture in picture, exit it
+      if (document.pictureInPictureElement === video) {
+        await document.exitPictureInPicture();
+        return;
+      }
+
+      // Try browser standard native picture in picture
+      if (document.pictureInPictureEnabled && video.requestPictureInPicture) {
+        await video.requestPictureInPicture();
+        setPipStatusMsg(getTranslation('nativePiPActiveMsg', language));
+        setTimeout(() => setPipStatusMsg(null), 4000);
+        return;
+      }
+    } catch (err) {
+      console.warn('Native Picture-in-Picture failed. Triggering React overlay fallback.', err);
+    }
+
+    // Default graceful fallback to beautiful floating React panel
+    setPipStatusMsg(getTranslation('overlayPiPActiveMsg', language));
+    setTimeout(() => setPipStatusMsg(null), 5000);
+    if (onTogglePiP) {
+      onTogglePiP();
+    }
+  };
+
   // Determine scaling classes based on aspect ratio setting
   const getAspectRatioClass = () => {
     switch (aspectRatio) {
@@ -489,6 +547,14 @@ export default function VideoPlayer({
         onClick={togglePlay}
         autoPlay
       />
+
+      {/* Picture-in-Picture Feedback Toast */}
+      {pipStatusMsg && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-slate-950/95 border border-blue-500/50 shadow-xl px-4 py-2 rounded-md text-white text-[10px] font-semibold flex items-center justify-center gap-2 z-40 transition-all duration-300 pointer-events-none text-center max-w-[90%]">
+          <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse shrink-0" />
+          <span className="font-sans text-neutral-200 font-medium">{pipStatusMsg}</span>
+        </div>
+      )}
 
       {/* Buffering Loading Overlay */}
       {isBuffering && !errorText && (
@@ -641,11 +707,14 @@ export default function VideoPlayer({
             {onTogglePiP && (
               <button
                 id="player-pip-btn"
-                onClick={onTogglePiP}
-                title={isPiP ? "Dock Player Inline" : "Popout Floating Player"}
-                className="p-1 text-neutral-300 hover:text-white hover:bg-neutral-800 rounded transition"
+                onClick={handlePiPToggle}
+                title={isNativePiP ? "Exit Picture-in-Picture" : isPiP ? "Dock Player Inline" : "Popout Player (Minimize Proof)"}
+                className={`p-1 px-1.5 flex items-center gap-1.5 rounded transition ${isNativePiP ? 'bg-blue-600/10 border border-blue-500/30 text-blue-400' : 'text-neutral-300 hover:text-white hover:bg-neutral-800'}`}
               >
-                {isPiP ? <Minimize2 className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+                {isNativePiP || isPiP ? <Minimize2 className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+                <span className="text-[9px] font-bold font-mono tracking-wide hidden xs:inline">
+                  {isNativePiP ? getTranslation('pipActive', language) : isPiP ? getTranslation('pipDock', language) : getTranslation('pipPopout', language)}
+                </span>
               </button>
             )}
 

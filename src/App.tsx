@@ -10,6 +10,7 @@ import { db, handleFirestoreError, OperationType } from './firebase';
 
 import { Channel, UserSettings } from './types';
 import { DEFAULT_CHANNELS } from './mockData';
+import { getTranslation, LanguageType } from './translations';
 import VideoPlayer from './components/VideoPlayer';
 import ChannelGuide from './components/ChannelGuide';
 import AdminPanel from './components/AdminPanel';
@@ -30,7 +31,8 @@ export default function App() {
     bufferSize: 10,
     lowLatency: true,
     streamQuality: 'auto',
-    textScale: 'md'
+    textScale: 'md',
+    language: 'en'
   });
   const [isPending, startLayoutTransition] = useTransition();
   const [isFloatingPlayer, setIsFloatingPlayer] = useState<boolean>(false);
@@ -43,7 +45,16 @@ export default function App() {
       try {
         const parsed = JSON.parse(savedSettings);
         if (parsed) {
-          setSettings(prev => ({ ...prev, ...parsed }));
+          setSettings(prev => ({
+            favorites: [],
+            theme: 'dark',
+            bufferSize: 10,
+            lowLatency: true,
+            streamQuality: 'auto',
+            textScale: 'md',
+            language: 'en',
+            ...parsed
+          }));
         }
       } catch (e) {
         console.warn('Failed to parse settings cache, falling back to default.');
@@ -267,23 +278,23 @@ export default function App() {
                   <div className="mb-3 px-3.5 py-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded flex items-center gap-2.5 shadow-sm">
                     <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-yellow-500 animate-pulse" />
                     <p className="text-[10px] font-bold font-sans leading-tight tracking-normal text-yellow-500/95">
-                      {performanceAlert}
+                      {performanceAlert === 'Use Wifi connection or High speed connection for best performance.' ? getTranslation('wifiAlert', settings.language) : performanceAlert}
                     </p>
                   </div>
                 )}
                 {isFloatingPlayer ? (
                   <div className="w-full aspect-video theme-custom-panel border theme-custom-border rounded-xl flex flex-col items-center justify-center p-6 text-center animate-pulse">
                     <Radio className="w-10 h-10 text-blue-500 mb-2" />
-                    <h3 className="text-xs font-bold text-slate-300">Playing in Popout Mode</h3>
+                    <h3 className="text-xs font-bold text-slate-300">{getTranslation('playingPopout', settings.language)}</h3>
                     <p className="text-[10px] text-slate-400 max-w-xs mt-1 mb-3">
-                      Watch the stream anywhere while updating lists or tweaking settings.
+                      {getTranslation('popoutMessage', settings.language)}
                     </p>
                     <button
                       id="return-inline-btn"
                       onClick={() => setIsFloatingPlayer(false)}
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold uppercase tracking-wider"
                     >
-                      Return Player Inline
+                      {getTranslation('returnInline', settings.language)}
                     </button>
                   </div>
                 ) : activePlayingChannel ? (
@@ -293,13 +304,14 @@ export default function App() {
                     bufferSize={settings.bufferSize}
                     streamQuality={settings.streamQuality}
                     onTogglePiP={() => setIsFloatingPlayer(true)}
+                    language={settings.language}
                   />
                 ) : (
                   <div className="w-full aspect-video theme-custom-panel border theme-custom-border rounded-xl flex flex-col items-center justify-center p-4 text-center">
                     <Radio className="w-10 h-10 text-slate-500 mb-2 animate-pulse" />
-                    <h3 className="text-xs font-bold text-slate-400">No Channels Available</h3>
+                    <h3 className="text-xs font-bold text-slate-400">{getTranslation('noChannels', settings.language)}</h3>
                     <p className="text-[10px] text-slate-500 max-w-xs mt-1">
-                      Please enter a custom stream URL, import an M3U playlist, or click Reset Database in the Admin panel.
+                      {getTranslation('selectChannelToWatch', settings.language)}
                     </p>
                   </div>
                 )}
@@ -314,6 +326,7 @@ export default function App() {
                   favorites={settings.favorites}
                   onToggleFavorite={toggleFavoriteChannel}
                   textScale={settings.textScale}
+                  language={settings.language}
                 />
               </div>
             </motion.div>
@@ -336,6 +349,7 @@ export default function App() {
                 onClose={() => startLayoutTransition(() => setActiveTab('home'))}
                 performanceAlert={performanceAlert}
                 onUpdatePerformanceAlert={handleUpdatePerformanceAlert}
+                language={settings.language}
               />
             </motion.div>
           )}
@@ -371,7 +385,7 @@ export default function App() {
             className={`flex flex-col items-center gap-1 px-8 py-1.5 rounded-xl transition ${activeTab === 'home' ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500 hover:text-slate-300'}`}
           >
             <Tv className="w-5 h-5 shrink-0" />
-            <span className="text-[10px] font-black tracking-wider uppercase">Player</span>
+            <span className="text-[10px] font-black tracking-wider uppercase">{getTranslation('livePlayer', settings.language)}</span>
           </button>
 
           {/* User Custom Settings Tab */}
@@ -381,7 +395,7 @@ export default function App() {
             className={`flex flex-col items-center gap-1 px-8 py-1.5 rounded-xl transition ${activeTab === 'settings' ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500 hover:text-slate-300'}`}
           >
             <Settings className="w-5 h-5 shrink-0" />
-            <span className="text-[10px] font-black tracking-wider uppercase">Settings</span>
+            <span className="text-[10px] font-black tracking-wider uppercase">{getTranslation('controlPanel', settings.language)}</span>
           </button>
 
         </div>
@@ -403,7 +417,7 @@ export default function App() {
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
               <span className="text-[9px] font-extrabold text-white uppercase tracking-wider truncate">
-                Floating: {activePlayingChannel.name}
+                {getTranslation('playingPopout', settings.language)}: {activePlayingChannel.name}
               </span>
             </div>
             <div className="flex items-center gap-1.5 font-sans">
