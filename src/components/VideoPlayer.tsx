@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useTransition } from 'react';
 import Hls from 'hls.js';
 import { 
   Play, Pause, Volume2, VolumeX, Maximize2, RotateCcw,
-  Activity, AlertCircle, RefreshCw, Layers 
+  Activity, AlertCircle, RefreshCw, Layers, ExternalLink, Minimize2 
 } from 'lucide-react';
 import { Channel } from '../types';
 import ChannelLogo from './ChannelLogo';
@@ -12,13 +12,17 @@ interface VideoPlayerProps {
   lowLatency: boolean;
   bufferSize: number;
   streamQuality: 'auto' | 'high' | 'medium' | 'low';
+  isPiP?: boolean;
+  onTogglePiP?: () => void;
 }
 
 export default function VideoPlayer({ 
   channel, 
   lowLatency, 
   bufferSize, 
-  streamQuality 
+  streamQuality,
+  isPiP = false,
+  onTogglePiP
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -633,14 +637,28 @@ export default function VideoPlayer({
               </div>
             )}
 
+            {/* Picture-in-Picture / Popout Toggle button */}
+            {onTogglePiP && (
+              <button
+                id="player-pip-btn"
+                onClick={onTogglePiP}
+                title={isPiP ? "Dock Player Inline" : "Popout Floating Player"}
+                className="p-1 text-neutral-300 hover:text-white hover:bg-neutral-800 rounded transition"
+              >
+                {isPiP ? <Minimize2 className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+              </button>
+            )}
+
             {/* Fullscreen Button */}
-            <button
-              id="player-fullscreen-btn"
-              onClick={toggleFullscreen}
-              className="p-1 text-neutral-300 hover:text-white hover:bg-neutral-800 rounded transition"
-            >
-              <Maximize2 className="w-4 h-4" />
-            </button>
+            {!isPiP && (
+              <button
+                id="player-fullscreen-btn"
+                onClick={toggleFullscreen}
+                className="p-1 text-neutral-300 hover:text-white hover:bg-neutral-800 rounded transition"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

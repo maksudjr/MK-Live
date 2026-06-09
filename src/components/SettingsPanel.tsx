@@ -35,7 +35,7 @@ export default function SettingsPanel({
   };
 
   return (
-    <div id="settings-panel-container" className="font-sans text-slate-300 h-full flex flex-col p-4 bg-slate-950 overflow-y-auto space-y-6">
+    <div id="settings-panel-container" className="font-sans text-slate-300 h-full flex flex-col p-4 theme-custom-bg overflow-y-auto space-y-6">
       
       {/* Settings Saved Notification */}
       {successMsg && (
@@ -46,7 +46,7 @@ export default function SettingsPanel({
       )}
 
       {/* Stream Control Header */}
-      <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 rounded-sm p-4">
+      <div className="flex items-center gap-3 theme-custom-panel border theme-custom-border rounded-sm p-4">
         <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-sm">
           <Settings className="w-5 h-5" />
         </div>
@@ -58,7 +58,7 @@ export default function SettingsPanel({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Playback Settings Group */}
-        <div className="bg-slate-900 border border-slate-800 rounded-sm p-4 space-y-4">
+        <div className="theme-custom-panel border theme-custom-border rounded-sm p-4 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
             <Sliders className="w-4 h-4 text-blue-500" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Stream Buffer Engine</h3>
@@ -117,7 +117,7 @@ export default function SettingsPanel({
         </div>
 
         {/* Viewport UI Resizer & Aspect options */}
-        <div className="bg-slate-900 border border-slate-800 rounded-sm p-4 space-y-4">
+        <div className="theme-custom-panel border theme-custom-border rounded-sm p-4 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
             <Smartphone className="w-4 h-4 text-blue-500" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Android Optimization</h3>
@@ -163,7 +163,7 @@ export default function SettingsPanel({
 
 
       {/* Developer Profile & Technical Notes */}
-      <div className="bg-slate-900 border border-slate-850 rounded-sm p-3 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+      <div className="theme-custom-panel border theme-custom-border rounded-sm p-3 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
         <div className="flex gap-2.5 items-start">
           <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
           <div className="text-[10px] text-slate-400 space-y-1">

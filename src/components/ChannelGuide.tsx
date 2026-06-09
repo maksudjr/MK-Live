@@ -59,10 +59,10 @@ export default function ChannelGuide({
   };
 
   return (
-    <div id="channel-guide-container" className="font-sans text-slate-300 flex flex-col h-full bg-slate-950 overflow-hidden">
+    <div id="channel-guide-container" className="font-sans text-slate-300 flex flex-col h-full theme-custom-bg overflow-hidden">
       
       {/* Category selection slide, search bar, & favorites toggle */}
-      <div className="p-3 bg-slate-950 border-b border-slate-850 space-y-2.5 shrink-0">
+      <div className="p-3 theme-custom-bg border-b theme-custom-border-light space-y-2.5 shrink-0">
         <div className="flex items-center gap-2">
           {/* Search bar wrapper */}
           <div className="relative flex-grow">
@@ -73,7 +73,7 @@ export default function ChannelGuide({
               placeholder="Search sports, champions, match events..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-sm pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
+              className="w-full theme-custom-input border theme-custom-border-light rounded-sm pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
             />
           </div>
 
@@ -81,7 +81,7 @@ export default function ChannelGuide({
           <button
             id="guide-favs-only-toggle"
             onClick={() => startTransition(() => setShowFavsOnly(!showFavsOnly))}
-            className={`p-1.5 shrink-0 rounded-sm border transition flex items-center gap-1.5 ${showFavsOnly ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
+            className={`p-1.5 shrink-0 rounded-sm border transition flex items-center gap-1.5 ${showFavsOnly ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'theme-custom-panel theme-custom-border text-slate-400'}`}
           >
             <Heart className={`w-4 h-4 ${showFavsOnly ? 'fill-blue-400 text-blue-400' : ''}`} />
             <span className="text-[10px] font-bold hidden sm:inline">Favorites</span>
@@ -95,7 +95,7 @@ export default function ChannelGuide({
               id={`filter-category-${cat}`}
               key={cat}
               onClick={() => startTransition(() => setSelectedCategory(cat))}
-              className={`px-3 py-1 text-[10px] font-semibold rounded-sm border transition shrink-0 ${selectedCategory === cat ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-900 text-slate-400 border-slate-805 hover:border-slate-700'}`}
+              className={`px-3 py-1 text-[10px] font-semibold rounded-sm border transition shrink-0 ${selectedCategory === cat ? 'bg-blue-600 text-white border-blue-500' : 'theme-custom-panel text-slate-400 theme-custom-border hover:border-slate-700'}`}
             >
               {cat}
             </button>
@@ -104,11 +104,11 @@ export default function ChannelGuide({
       </div>
 
       {/* Title Header for Channel List (replacing multi-screen tabs) */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-850 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 theme-custom-panel border-b theme-custom-border shrink-0">
         <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
           <Radio className="w-3.5 h-3.5 text-blue-400" /> Active Stations
         </span>
-        <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 border border-slate-800 rounded">
+        <span className="text-[10px] font-mono text-slate-400 theme-custom-input px-2 py-0.5 border theme-custom-border rounded">
           {filteredChannels.length} Streams
         </span>
       </div>
@@ -125,7 +125,7 @@ export default function ChannelGuide({
                 id={`channel-grid-item-${chan.id}`}
                 key={chan.id}
                 onClick={() => onSelectChannel(chan.id)}
-                className={`relative flex flex-col items-center justify-center p-2 rounded border transition-all cursor-pointer select-none ${isSelected ? 'bg-blue-600/10 border-blue-500 shadow-md shadow-blue-500/10 text-white' : 'bg-slate-900/40 border-slate-850 hover:bg-slate-900/80 text-slate-300'}`}
+                className={`relative flex flex-col items-center justify-center p-2 rounded border transition-all cursor-pointer select-none ${isSelected ? 'bg-blue-600/10 border-blue-500 shadow-md shadow-blue-500/10 text-white' : 'theme-custom-panel theme-custom-border-light hover:bg-slate-900/80 text-slate-300'}`}
               >
                 {/* Active indicator bar */}
                 {isSelected && (

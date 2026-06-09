@@ -6,6 +6,70 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* Theme class definitions */
+
+/* Slate Dark Theme (Default) */
+.theme-dark {
+  --app-bg: #090d16;
+  --panel-bg: #0f172a;
+  --panel-card: #1e293b;
+  --input-bg: #020617;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border-color: #1e293b;
+  --border-light: #0f172a;
+}
+
+/* AMOLED Black Theme */
+.theme-amoled {
+  --app-bg: #000000;
+  --panel-bg: #0a0a0a;
+  --panel-card: #18181b;
+  --input-bg: #000000;
+  --text-main: #f4f4f5;
+  --text-muted: #71717a;
+  --border-color: #27272a;
+  --border-light: #181c20;
+}
+
+/* Sporty Blue/Green Theme */
+.theme-sporty {
+  --app-bg: #040612;
+  --panel-bg: #090e22;
+  --panel-card: #151d3b;
+  --input-bg: #03040c;
+  --text-main: #ffffff;
+  --text-muted: #38bdf8;
+  --border-color: #1a2850;
+  --border-light: #0d1630;
+}
+
+/* Custom theme mapping utilities matching Tailwind guidelines */
+.theme-custom-bg {
+  background-color: var(--app-bg);
+}
+.theme-custom-panel {
+  background-color: var(--panel-bg);
+}
+.theme-custom-card {
+  background-color: var(--panel-card);
+}
+.theme-custom-input {
+  background-color: var(--input-bg);
+}
+.theme-custom-border {
+  border-color: var(--border-color);
+}
+.theme-custom-border-light {
+  border-color: var(--border-light);
+}
+.theme-custom-text {
+  color: var(--text-main);
+}
+.theme-custom-text-muted {
+  color: var(--text-muted);
+}
+
 /* Custom scrollbar class for clean, compact channel lists on Android */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -17,9 +81,12 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: #020617; /* Deep Slate 950 base */
-  color: #f1f5f9; /* slate-100 */
+  background-color: var(--app-bg, #020617);
+  color: var(--text-main, #f1f5f9);
   overflow: hidden;
+  transition-property: background-color, border-color, color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
 }
 
 

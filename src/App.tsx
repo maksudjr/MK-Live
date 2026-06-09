@@ -2,7 +2,7 @@ import { useState, useEffect, startTransition, useTransition } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Tv, Compass, ShieldAlert, Settings, Radio, 
-  Clock, Heart, List, HelpCircle, Power 
+  Clock, Heart, List, HelpCircle, Power, X, ExternalLink
 } from 'lucide-react';
 
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -33,6 +33,7 @@ export default function App() {
     textScale: 'md'
   });
   const [isPending, startLayoutTransition] = useTransition();
+  const [isFloatingPlayer, setIsFloatingPlayer] = useState<boolean>(false);
 
   // Load persistence configurations once and update clock, plus listen to Firestore channels
   useEffect(() => {
@@ -203,10 +204,10 @@ export default function App() {
   return (
     <div 
       id="mklive-dashboard-app"
-      className={`h-screen flex flex-col justify-between overflow-hidden transition-colors duration-300 bg-slate-950`}
+      className={`h-screen flex flex-col justify-between overflow-hidden transition-all duration-300 theme-${settings.theme} theme-custom-bg theme-custom-text`}
     >
       {/* Dynamic Header (Geometric Balance style) */}
-      <header className="shrink-0 h-16 flex items-center justify-between px-4 bg-slate-900/80 border-b border-slate-850 z-40 transition-all duration-300 opacity-100">
+      <header className="shrink-0 h-16 flex items-center justify-between px-4 theme-custom-panel border-b theme-custom-border z-40 transition-all duration-300 opacity-100">
         <div className="flex items-center gap-3">
           {/* Logo element matches high-contrast sport styling */}
           <div className="w-8 h-8 bg-blue-600 rounded-sm flex items-center justify-center font-black text-xl italic text-white shadow-lg">
@@ -224,7 +225,7 @@ export default function App() {
 
         {/* Real-time UTC clock and Secret Admin Portal button at the Corner */}
         <div className="flex items-center gap-2">
-          <div className="hidden xs:flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 px-2.5 py-1 rounded-md">
+          <div className="hidden xs:flex items-center gap-1.5 theme-custom-input border theme-custom-border px-2.5 py-1 rounded-md">
             <Clock className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
             <span className="text-[10px] font-mono text-slate-300 font-medium whitespace-nowrap">
               {utcTime || '00:00:00 UTC'}
@@ -238,7 +239,7 @@ export default function App() {
                 setActiveTab(activeTab === 'admin' ? 'home' : 'admin');
               });
             }}
-            className={`flex items-center gap-1 py-1 px-2.5 rounded border text-[9px] font-extrabold uppercase tracking-widest transition ${activeTab === 'admin' ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20' : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'}`}
+            className={`flex items-center gap-1 py-1 px-2.5 rounded border text-[9px] font-extrabold uppercase tracking-widest transition ${activeTab === 'admin' ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20' : 'theme-custom-input theme-custom-border text-slate-400 hover:text-slate-200 hover:border-slate-700'}`}
             title="Access Admin portal (ID: maksud, Password: maksud)"
           >
             <ShieldAlert className="w-3 h-3 text-blue-500" />
@@ -248,7 +249,7 @@ export default function App() {
       </header>
 
       {/* Main viewport Container (Fits screen on Android and has customized tabs scroll) */}
-      <main className="flex-grow flex flex-col overflow-hidden relative bg-slate-900">
+      <main className="flex-grow flex flex-col overflow-hidden relative theme-custom-bg">
         <AnimatePresence mode="wait">
           {activeTab === 'home' && (
             <motion.div
@@ -261,7 +262,7 @@ export default function App() {
               className="flex-grow flex flex-col md:flex-row overflow-hidden min-h-0"
             >
               {/* Media Player wrapper - Stays pinned at top on small mobile, side during desktop */}
-              <div className="w-full md:w-[60%] shrink-0 p-3 bg-slate-950/40 flex flex-col justify-center border-b md:border-b-0 md:border-r border-slate-800">
+              <div className="w-full md:w-[60%] shrink-0 p-3 theme-custom-bg flex flex-col justify-center border-b md:border-b-0 md:border-r theme-custom-border-light">
                 {performanceAlert && (
                   <div className="mb-3 px-3.5 py-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded flex items-center gap-2.5 shadow-sm">
                     <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-yellow-500 animate-pulse" />
@@ -270,15 +271,31 @@ export default function App() {
                     </p>
                   </div>
                 )}
-                {activePlayingChannel ? (
+                {isFloatingPlayer ? (
+                  <div className="w-full aspect-video theme-custom-panel border theme-custom-border rounded-xl flex flex-col items-center justify-center p-6 text-center animate-pulse">
+                    <Radio className="w-10 h-10 text-blue-500 mb-2" />
+                    <h3 className="text-xs font-bold text-slate-300">Playing in Popout Mode</h3>
+                    <p className="text-[10px] text-slate-400 max-w-xs mt-1 mb-3">
+                      Watch the stream anywhere while updating lists or tweaking settings.
+                    </p>
+                    <button
+                      id="return-inline-btn"
+                      onClick={() => setIsFloatingPlayer(false)}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold uppercase tracking-wider"
+                    >
+                      Return Player Inline
+                    </button>
+                  </div>
+                ) : activePlayingChannel ? (
                   <VideoPlayer
                     channel={activePlayingChannel}
                     lowLatency={settings.lowLatency}
                     bufferSize={settings.bufferSize}
                     streamQuality={settings.streamQuality}
+                    onTogglePiP={() => setIsFloatingPlayer(true)}
                   />
                 ) : (
-                  <div className="w-full aspect-video bg-slate-950 border border-slate-800 rounded-xl flex flex-col items-center justify-center p-4 text-center">
+                  <div className="w-full aspect-video theme-custom-panel border theme-custom-border rounded-xl flex flex-col items-center justify-center p-4 text-center">
                     <Radio className="w-10 h-10 text-slate-500 mb-2 animate-pulse" />
                     <h3 className="text-xs font-bold text-slate-400">No Channels Available</h3>
                     <p className="text-[10px] text-slate-500 max-w-xs mt-1">
@@ -289,7 +306,7 @@ export default function App() {
               </div>
 
               {/* Selection Directory: Guides, Channels List and search */}
-              <div className="flex-grow overflow-hidden flex flex-col min-h-0 bg-slate-950">
+              <div className="flex-grow overflow-hidden flex flex-col min-h-0 theme-custom-bg">
                 <ChannelGuide
                   channels={channels}
                   selectedChannelId={selectedChannelId}
@@ -344,7 +361,7 @@ export default function App() {
       </main>
 
       {/* Floating Android styled Nav Toolbar */}
-      <nav className="shrink-0 bg-slate-950 border-t border-slate-850 px-5 py-2 z-40 transition-all duration-300 opacity-100">
+      <nav className="shrink-0 theme-custom-panel border-t theme-custom-border px-5 py-2 z-40 transition-all duration-300 opacity-100">
         <div className="max-w-md mx-auto flex items-center justify-around">
           
           {/* Home Player Tab */}
@@ -369,6 +386,61 @@ export default function App() {
 
         </div>
       </nav>
+
+      {/* Floating Picture-in-Picture / Popout Player overlay */}
+      {isFloatingPlayer && activePlayingChannel && (
+        <motion.div
+          drag
+          dragMomentum={false}
+          dragElastic={0.05}
+          className="fixed bottom-[74px] right-4 w-72 xs:w-80 sm:w-96 z-[100] bg-slate-950 border border-blue-500 rounded-xl shadow-2xl overflow-hidden shadow-blue-500/20 flex flex-col"
+          initial={{ opacity: 0, scale: 0.9, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 30 }}
+        >
+          {/* Pip Header */}
+          <div className="bg-slate-900 border-b border-slate-800 px-3 py-1.5 flex items-center justify-between cursor-move select-none">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
+              <span className="text-[9px] font-extrabold text-white uppercase tracking-wider truncate">
+                Floating: {activePlayingChannel.name}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 font-sans">
+              <button
+                id="pip-dock-bar-btn"
+                onClick={() => setIsFloatingPlayer(false)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                title="Dock Player Inline"
+              >
+                <Tv className="w-3.5 h-3.5" />
+              </button>
+              <button
+                id="pip-close-bar-btn"
+                onClick={() => {
+                  setIsFloatingPlayer(false);
+                }}
+                className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-slate-800 transition"
+                title="Close Player"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Video Container */}
+          <div className="aspect-video w-full bg-black relative">
+            <VideoPlayer
+              channel={activePlayingChannel}
+              lowLatency={settings.lowLatency}
+              bufferSize={settings.bufferSize}
+              streamQuality={settings.streamQuality}
+              isPiP={true}
+              onTogglePiP={() => setIsFloatingPlayer(false)}
+            />
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

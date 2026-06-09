@@ -352,7 +352,7 @@ export default function AdminPanel({
   };
 
   return (
-    <div id="admin-panel-container" className="font-sans text-white h-full flex flex-col p-4 bg-slate-950 overflow-y-auto">
+    <div id="admin-panel-container" className="font-sans text-white h-full flex flex-col p-4 theme-custom-bg overflow-y-auto">
       {/* Locked Header State */}
       {!isAdminUnlocked ? (
         <div id="admin-passcode-gate" className="flex-grow flex flex-col items-center justify-center py-16 px-4 relative">
@@ -360,14 +360,14 @@ export default function AdminPanel({
             <button
               id="admin-gate-close-btn"
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 bg-slate-900 border border-slate-800 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition"
+              className="absolute top-4 right-4 p-2 theme-custom-panel border theme-custom-border rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition"
               title="Close Panel"
             >
               <X className="w-5 h-5" />
             </button>
           )}
 
-          <div className="bg-slate-900 border border-blue-500/20 rounded-sm p-6 w-full max-w-sm text-center shadow-2xl">
+          <div className="theme-custom-panel border theme-custom-border rounded-sm p-6 w-full max-w-sm text-center shadow-2xl">
             <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-sm flex items-center justify-center mx-auto mb-4">
               <Key className="w-6 h-6 animate-pulse" />
             </div>
@@ -384,7 +384,7 @@ export default function AdminPanel({
                   placeholder="Enter ID"
                   value={adminId}
                   onChange={(e) => setAdminId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-blue-500/50 text-white transition"
+                  className="w-full theme-custom-input border theme-custom-border-light rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-blue-500/50 text-white transition"
                 />
               </div>
 
@@ -397,7 +397,7 @@ export default function AdminPanel({
                   placeholder="Enter Password"
                   value={passkey}
                   onChange={(e) => setPasskey(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-blue-500/50 text-white transition font-mono tracking-wider"
+                  className="w-full theme-custom-input border theme-custom-border-light rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-blue-500/50 text-white transition font-mono tracking-wider"
                 />
               </div>
 
@@ -416,9 +416,8 @@ export default function AdminPanel({
       ) : (
         /* Unlocked Content Wrapper */
         <div id="admin-unlocked-board" className="space-y-6 max-w-3xl mx-auto w-full">
-          
           {/* Top Info Hub */}
-          <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-sm p-4">
+          <div className="flex items-center justify-between theme-custom-panel border theme-custom-border rounded-sm p-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-sm">
                 <Database className="w-5 h-5" />
@@ -432,7 +431,7 @@ export default function AdminPanel({
               <button
                 id="admin-reset-system-btn"
                 onClick={onResetChannels}
-                className="flex items-center gap-1.5 bg-slate-950 hover:bg-rose-950 border border-slate-850 text-rose-450 text-[10px] font-bold px-3 py-1.5 rounded-sm active:scale-95 transition"
+                className="flex items-center gap-1.5 theme-custom-input hover:bg-rose-950 border theme-custom-border-light text-rose-455 text-[10px] font-bold px-3 py-1.5 rounded-sm active:scale-95 transition"
               >
                 Reset Database
               </button>
@@ -457,7 +456,7 @@ export default function AdminPanel({
           )}
 
           {/* Performance Advisory Banner Edit Panel */}
-          <div className="bg-slate-900 border border-slate-800 rounded-sm p-5 space-y-4">
+          <div className="theme-custom-panel border theme-custom-border rounded-sm p-5 space-y-4">
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-4.5 h-4.5 text-yellow-500" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Performance Advisory Warning Alert</h3>
