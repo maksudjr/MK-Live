@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { 
-  Plus, Trash2, Key, Database, RefreshCw, Sparkles, 
-  CheckCircle, HelpCircle, Code, ListPlus, X, ShieldAlert, Upload, Edit,
-  ArrowUp, ArrowDown, Move
+  Plus, Trash2, Key, Database, RefreshCw, Sparkles, ListPlus, Download,
+  CheckCircle, HelpCircle, Code, X, ShieldAlert, Upload, Edit,
+  ArrowUp, ArrowDown, Move, Eye, EyeOff
 } from 'lucide-react';
 import { Channel, GuideEvent } from '../types';
 import ChannelLogo from './ChannelLogo';
@@ -54,6 +54,211 @@ export default function AdminPanel({
   const [manualLogo, setManualLogo] = useState<string>('⚽');
   const [manualCategory, setManualCategory] = useState<string>('Sports');
   const [customCategory, setCustomCategory] = useState<string>('');
+  const [manualEnabled, setManualEnabled] = useState<boolean>(true);
+
+  // M3U Playlist Fetcher & Parser State
+  const [m3uUrl, setM3uUrl] = useState<string>('');
+  const [m3uText, setM3uText] = useState<string>('');
+  const [isLoaderFetching, setIsLoaderFetching] = useState<boolean>(false);
+
+  // Helper function to build custom guide events for a channel
+  const generateSportsGuide = (channelName: string, category: string): GuideEvent[] => {
+    const sportsMap: Record<string, string> = {
+      'Sports': 'Championship Live Match Coverage',
+      'News': 'Headline Bulletins & Analysis Live',
+      'Cartoons': 'Animated Cartoons Marathon Show',
+      'Others': 'Global Focus Special Broadcast'
+    };
+
+    const mainSport = category;
+    const desc = sportsMap[category] || 'Live Action Broadcast';
+
+    return [
+      {
+        id: `g-${Date.now()}-${Math.random().toString(36).substr(2, 5)}-1`,
+        title: `Warmup: ${channelName} Sports Preview`,
+        timeStart: '14:00',
+        timeEnd: '15:30',
+        sport: mainSport,
+        status: 'finished'
+      },
+      {
+        id: `g-${Date.now()}-${Math.random().toString(36).substr(2, 5)}-2`,
+        title: `Live Match: ${channelName} ${desc}`,
+        timeStart: '15:30',
+        timeEnd: '19:00',
+        sport: mainSport,
+        status: 'live'
+      },
+      {
+        id: `g-${Date.now()}-${Math.random().toString(36).substr(2, 5)}-3`,
+        title: `Analysis: Daily Recap & Interviews`,
+        timeStart: '19:00',
+        timeEnd: '21:00',
+        sport: mainSport,
+        status: 'upcoming'
+      }
+    ];
+  };
+
+  const detectCategory = (name: string): string => {
+    const l = name.toLowerCase();
+    if (l.includes('toon') || l.includes('cartoon') || l.includes('bunny') || l.includes('kid') || l.includes('disney') || l.includes('anime')) {
+      return 'Cartoons';
+    }
+    if (l.includes('news') || l.includes('info') || l.includes('headline') || l.includes('press') || l.includes('report') || l.includes('globe') || l.includes('world') || l.includes('somoy') || l.includes('jamuna')) {
+      return 'News';
+    }
+    if (l.includes('sport') || l.includes('foot') || l.includes('soccer') || l.includes('tennis') || l.includes('f1') || l.includes('racing') || l.includes('basket') || l.includes('fight') || l.includes('play') || l.includes('bein') || l.includes('espn') || l.includes('cricket') || l.includes('willow') || l.includes('t-sports')) {
+      return 'Sports';
+    }
+    return 'Others';
+  };
+
+  const handleFetchM3UPlaylist = async () => {
+    if (!m3uUrl.trim()) {
+      showFeedback('error', 'Please enter a valid M3U playlist URL.');
+      return;
+    }
+
+    setIsLoaderFetching(true);
+    showFeedback('success', 'Fetching playlist content via CORS proxy...');
+
+    // Try multiple CORS proxy strategies sequentially
+    const proxies = [
+      (u: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    ];
+
+    let playlistText = '';
+
+    // Direct fetch is always attempted first in case backend offers permissive CORS
+    try {
+      const response = await fetch(m3uUrl.trim());
+      if (response.ok) {
+        playlistText = await response.text();
+      }
+    } catch (e) {
+      console.warn('Direct fetch failed. Trying CORS-enabler proxy...');
+    }
+
+    if (!playlistText) {
+      for (const proxyFn of proxies) {
+        try {
+          const proxyUrl = proxyFn(m3uUrl.trim());
+          const response = await fetch(proxyUrl);
+          if (response.ok) {
+            playlistText = await response.text();
+            if (playlistText) break;
+          }
+        } catch (e) {
+          console.error('Proxy strategy failed:', e);
+        }
+      }
+    }
+
+    setIsLoaderFetching(false);
+
+    if (playlistText && playlistText.trim().length > 0) {
+      setM3uText(playlistText);
+      showFeedback('success', `Fetched playlist successfully! Analyzing contents...`);
+      processM3UText(playlistText);
+    } else {
+      showFeedback('error', 'Unable to fetch data from live link due to cross-origin security blocks. Copy & paste the playlist text in the textbox below.');
+    }
+  };
+
+  const processM3UText = (rawText: string) => {
+    if (!rawText.trim()) {
+      showFeedback('error', 'Pasted content of M3U config is empty.');
+      return;
+    }
+
+    try {
+      const lines = rawText.split('\n');
+      const parsedChannels: Channel[] = [];
+      let currentInfo: { name: string; logo: string; logoUrl?: string; category?: string } | null = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        if (line.startsWith('#EXTINF:')) {
+          let name = 'M3U Channel';
+          let logo = '📺';
+
+          const logoMatch = line.match(/(?:tvg-logo|logo)="([^"]+)"/i);
+          let logoUrl = logoMatch ? logoMatch[1] : undefined;
+
+          const groupMatch = line.match(/(?:group-title|tvg-group)="([^"]+)"/i);
+          let parsedCategory = groupMatch ? groupMatch[1].trim() : '';
+
+          const commaIndex = line.lastIndexOf(',');
+          if (commaIndex !== -1) {
+            const rawName = line.substring(commaIndex + 1).trim();
+            if (rawName) name = rawName;
+          }
+
+          const lName = name.toLowerCase();
+          if (lName.includes('foot') || lName.includes('soccer') || lName.includes('laliga') || lName.includes('premier')) logo = '⚽';
+          else if (lName.includes('tennis')) logo = '🎾';
+          else if (lName.includes('race') || lName.includes('motor') || lName.includes('f1') || lName.includes('motogp')) logo = '🏎️';
+          else if (lName.includes('basket') || lName.includes('nba')) logo = '🏀';
+          else if (lName.includes('fight') || lName.includes('ufc') || lName.includes('mma') || lName.includes('box')) logo = '🥊';
+          else if (lName.includes('golf')) logo = '⛳';
+          else if (lName.includes('cricket') || lName.includes('ipl')) logo = '🏏';
+          else if (lName.includes('news') || lName.includes('cnn') || lName.includes('bbc')) logo = '📰';
+          else if (lName.includes('cartoon') || lName.includes('disney') || lName.includes('kid')) logo = '🧸';
+
+          currentInfo = { name, logo, logoUrl, category: parsedCategory };
+        } else if (line.startsWith('http://') || line.startsWith('https://')) {
+          if (currentInfo) {
+            const sportType = currentInfo.category || detectCategory(currentInfo.name);
+            const chan: Channel = {
+              id: `ch-m3u-${Date.now()}-${parsedChannels.length}-${Math.random().toString(36).substr(2, 5)}`,
+              name: currentInfo.name,
+              logo: currentInfo.logoUrl || currentInfo.logo,
+              streamUrl: line,
+              category: sportType,
+              currentShow: `${currentInfo.name} Live Stream`,
+              currentShowTime: 'Direct Broadcast',
+              nextShow: 'Sports Review Special',
+              guide: generateSportsGuide(currentInfo.name, sportType)
+            };
+            parsedChannels.push(chan);
+            currentInfo = null;
+          } else {
+            const fallbackName = `Live Channel ${parsedChannels.length + 1}`;
+            const chan: Channel = {
+              id: `ch-m3u-${Date.now()}-${parsedChannels.length}-${Math.random().toString(36).substr(2, 5)}`,
+              name: fallbackName,
+              logo: '📡',
+              streamUrl: line,
+              category: 'Others',
+              currentShow: 'Generic High Quality Stream',
+              currentShowTime: 'Ongoing',
+              nextShow: 'Sports Roundup',
+              guide: generateSportsGuide(fallbackName, 'Others')
+            };
+            parsedChannels.push(chan);
+          }
+        }
+      }
+
+      if (parsedChannels.length === 0) {
+        showFeedback('error', 'No valid streaming URLs matched. Please verify the playlist format.');
+        return;
+      }
+
+      startTransition(() => {
+        onUpdateChannels([...channels, ...parsedChannels]);
+      });
+      setM3uUrl('');
+      setM3uText('');
+      showFeedback('success', `Successfully processed & imported ${parsedChannels.length} new stations!`);
+    } catch (err: any) {
+      showFeedback('error', `Parsing failed: ${err.message || 'Malformed shape'}`);
+    }
+  };
 
   // Compute dynamic existing categories to populate the dropdown selection
   const existingCategories = Array.from(
@@ -66,8 +271,6 @@ export default function AdminPanel({
   const coreCategories = ['Sports', 'News', 'Cartoons', 'Others'];
   const allDropdownCategories = Array.from(new Set([...coreCategories, ...existingCategories]));
 
-  // M3U Playlist Parser input
-  const [m3uText, setM3uText] = useState<string>('');
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [_, startTransition] = useTransition();
@@ -102,45 +305,7 @@ export default function AdminPanel({
     }
   };
 
-  // Helper function to build custom guide events for a channel
-  const generateSportsGuide = (channelName: string, category: string): GuideEvent[] => {
-    const sportsMap: Record<string, string> = {
-      'Sports': 'Championship Live Match Coverage',
-      'News': 'Headline Bulletins & Analysis Live',
-      'Cartoons': 'Animated Cartoons Marathon Show',
-      'Others': 'Global Focus Special Broadcast'
-    };
 
-    const mainSport = category;
-    const desc = sportsMap[category] || 'Live Action Broadcast';
-
-    return [
-      {
-        id: `g-${Date.now()}-1`,
-        title: `Warmup: ${channelName} Sports Preview`,
-        timeStart: '14:00',
-        timeEnd: '15:30',
-        sport: mainSport,
-        status: 'finished'
-      },
-      {
-        id: `g-${Date.now()}-2`,
-        title: `Live Match: ${channelName} ${desc}`,
-        timeStart: '15:30',
-        timeEnd: '19:00',
-        sport: mainSport,
-        status: 'live'
-      },
-      {
-        id: `g-${Date.now()}-3`,
-        title: `Analysis: Daily Recap & Interviews`,
-        timeStart: '19:00',
-        timeEnd: '21:00',
-        sport: mainSport,
-        status: 'upcoming'
-      }
-    ];
-  };
 
   const handleSaveAlert = async () => {
     if (!alertText.trim()) {
@@ -176,7 +341,8 @@ export default function AdminPanel({
             name: manualName.trim(),
             streamUrl: manualUrl.trim(),
             category: categoryToSave,
-            logo: manualLogo
+            logo: manualLogo,
+            enabled: manualEnabled
           };
         }
         return c;
@@ -199,7 +365,8 @@ export default function AdminPanel({
         currentShow: 'Live Broadcast',
         currentShowTime: 'Direct',
         nextShow: 'Upcoming Event',
-        guide: []
+        guide: [],
+        enabled: manualEnabled
       };
 
       startTransition(() => {
@@ -213,6 +380,7 @@ export default function AdminPanel({
     setManualUrl('');
     setManualLogo('⚽');
     setCustomCategory('');
+    setManualEnabled(true);
   };
 
   const startEditingChannel = (chan: Channel) => {
@@ -220,6 +388,7 @@ export default function AdminPanel({
     setManualName(chan.name);
     setManualUrl(chan.streamUrl);
     setManualLogo(chan.logo);
+    setManualEnabled(chan.enabled !== false);
     
     const cat = chan.category || 'Sports';
     if (!allDropdownCategories.includes(cat)) {
@@ -239,117 +408,29 @@ export default function AdminPanel({
     setManualLogo('⚽');
     setManualCategory('Sports');
     setCustomCategory('');
+    setManualEnabled(true);
     showFeedback('success', 'Cancelled channel editing.');
   };
 
-  // Parse paste-able M3U playlist text
-  const handleParseM3U = () => {
-    if (!m3uText.trim()) {
-      showFeedback('error', 'Paste M3U playlist contents first.');
-      return;
-    }
-
-    try {
-      const lines = m3uText.split('\n');
-      const parsedChannels: Channel[] = [];
-      let currentInfo: { name: string; logo: string; logoUrl?: string; category?: string } | null = null;
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-
-        if (line.startsWith('#EXTINF:')) {
-          // Parse channel info. Extract tvg-logo and group-title if present
-          let name = 'M3U Channel';
-          let logo = '📺';
-
-          // Extract logo from tvg-logo="..." or logo="..."
-          const logoMatch = line.match(/(?:tvg-logo|logo)="([^"]+)"/i);
-          let logoUrl = logoMatch ? logoMatch[1] : undefined;
-
-          // Extract category from group-title="..." or tvg-group="..."
-          const groupMatch = line.match(/(?:group-title|tvg-group)="([^"]+)"/i);
-          let parsedCategory = groupMatch ? groupMatch[1].trim() : '';
-
-          // Try to extract the channel name at the end of the line (after the last comma)
-          const commaIndex = line.lastIndexOf(',');
-          if (commaIndex !== -1) {
-            const rawName = line.substring(commaIndex + 1).trim();
-            if (rawName) name = rawName;
-          }
-
-          // Pick elegant emoji depending on keywords in title
-          if (name.toLowerCase().includes('foot') || name.toLowerCase().includes('soccer')) logo = '⚽';
-          else if (name.toLowerCase().includes('tennis')) logo = '🎾';
-          else if (name.toLowerCase().includes('race') || name.toLowerCase().includes('motor') || name.toLowerCase().includes('f1')) logo = '🏎️';
-          else if (name.toLowerCase().includes('basket')) logo = '🏀';
-          else if (name.toLowerCase().includes('fight') || name.toLowerCase().includes('ufc') || name.toLowerCase().includes('mma')) logo = '🥊';
-          else if (name.toLowerCase().includes('golf')) logo = '⛳';
-
-          currentInfo = { name, logo, logoUrl, category: parsedCategory };
-        } else if (line.startsWith('http://') || line.startsWith('https://')) {
-          // Line acts as stream url
-          if (currentInfo) {
-            const sportType = currentInfo.category || detectCategory(currentInfo.name);
-            const chan: Channel = {
-              id: `ch-m3u-${Date.now()}-${parsedChannels.length}`,
-              name: currentInfo.name,
-              logo: currentInfo.logoUrl || currentInfo.logo,
-              streamUrl: line,
-              category: sportType,
-              currentShow: `${currentInfo.name} Live Stream`,
-              currentShowTime: 'Direct Broadcast',
-              nextShow: 'Sports Review Special',
-              guide: generateSportsGuide(currentInfo.name, sportType)
-            };
-            parsedChannels.push(chan);
-            currentInfo = null;
-          } else {
-            // Unnamed URL line fallback
-            const fallbackName = `Live Channel ${parsedChannels.length + 1}`;
-            const chan: Channel = {
-              id: `ch-m3u-${Date.now()}-${parsedChannels.length}`,
-              name: fallbackName,
-              logo: '📡',
-              streamUrl: line,
-              category: 'All-Sports',
-              currentShow: 'Generic High Quality Stream',
-              currentShowTime: 'Ongoing',
-              nextShow: 'Sports Roundup',
-              guide: generateSportsGuide(fallbackName, 'All-Sports')
-            };
-            parsedChannels.push(chan);
-          }
-        }
+  const toggleChannelStatus = (chan: Channel) => {
+    const nextStatus = chan.enabled === false ? true : false;
+    const updated = channels.map(c => {
+      if (c.id === chan.id) {
+        return {
+          ...c,
+          enabled: nextStatus
+        };
       }
-
-      if (parsedChannels.length === 0) {
-        showFeedback('error', 'No valid stream URLs detected in M3U text.');
-        return;
-      }
-
-      startTransition(() => {
-        onUpdateChannels([...channels, ...parsedChannels]);
-      });
-      setM3uText('');
-      showFeedback('success', `Parsed & imported ${parsedChannels.length} sports channels from playlist successfully!`);
-    } catch (err: any) {
-      showFeedback('error', `Parsing failed: ${err.message || 'Malformed M3U format'}`);
-    }
+      return c;
+    });
+    startTransition(() => {
+      onUpdateChannels(updated);
+    });
+    const statusText = nextStatus ? 'Broadcasting ON (Visible on Dashboard)' : 'Broadcasting OFF (Hidden from Dashboard)';
+    showFeedback('success', `Channel "${chan.name}" changed to ${statusText}!`);
   };
 
-  const detectCategory = (name: string): string => {
-    const l = name.toLowerCase();
-    if (l.includes('toon') || l.includes('cartoon') || l.includes('bunny') || l.includes('kid') || l.includes('disney') || l.includes('anime')) {
-      return 'Cartoons';
-    }
-    if (l.includes('news') || l.includes('info') || l.includes('headline') || l.includes('press') || l.includes('report') || l.includes('globe') || l.includes('world')) {
-      return 'News';
-    }
-    if (l.includes('sport') || l.includes('foot') || l.includes('soccer') || l.includes('tennis') || l.includes('f1') || l.includes('racing') || l.includes('basket') || l.includes('fight') || l.includes('play') || l.includes('bein') || l.includes('espn')) {
-      return 'Sports';
-    }
-    return 'Others';
-  };
+
 
   // Get all unique categories from categoryOrder prop followed by any extra ones from active channels
   const categoriesInDb = Array.from(
@@ -542,37 +623,6 @@ export default function AdminPanel({
             </div>
           </div>
 
-          {/* M3U Fast Guide Auto-Populate Parser (requested: "Admin can place channel url m3u8 links to populate the guide data automatically.") */}
-          <div className="bg-slate-900 border border-slate-800 rounded-sm p-5 space-y-4">
-            <div className="flex items-center justify-between font-sans">
-              <div className="flex items-center gap-2">
-                <ListPlus className="w-4.5 h-4.5 text-blue-500" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-blue-400">M3U Stream Auto-Populator</h3>
-              </div>
-              <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded px-1.5 font-bold">FASTER</span>
-            </div>
-            <p className="text-slate-400 text-xs leading-relaxed font-sans">
-              Paste m3u8 streams or complex playlists directly here. The system extracts live broadcasting URLs and automatically drafts dynamic 24-hour sports guides for every match.
-            </p>
-            <div className="relative">
-              <textarea
-                id="admin-m3u-textarea"
-                rows={4}
-                value={m3uText}
-                onChange={(e) => setM3uText(e.target.value)}
-                placeholder={`#EXTM3U\n#EXTINF:-1 tvg-logo="⚽" tvg-name="Sky Sports", Sky Sports HD\nhttps://example.com/stream1.m3u8`}
-                className="w-full bg-slate-950 font-mono text-[10px] text-slate-300 border border-slate-850 rounded-sm p-3 focus:outline-none focus:border-blue-500/50 resize-y"
-              />
-            </div>
-            <button
-              id="admin-parse-m3u-btn"
-              onClick={handleParseM3U}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold py-2.5 rounded-sm transition shadow-lg"
-            >
-              <Sparkles className="w-3.5 h-3.5" /> Analyze Playlist & Populate Guide Telemetry
-            </button>
-          </div>
-
           {/* Homepage Category Serial Manager */}
           <div className="bg-slate-900 border border-slate-800 rounded-sm p-5 space-y-4">
             <div className="flex items-center justify-between font-sans">
@@ -635,6 +685,92 @@ export default function AdminPanel({
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* M3U Fast Guide Auto-Populate Parser */}
+          <div className="bg-slate-900 border border-slate-800 rounded-sm p-4.5 space-y-4">
+            <div className="flex items-center justify-between font-sans">
+              <div className="flex items-center gap-2">
+                <ListPlus className="w-4.5 h-4.5 text-blue-500" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-blue-400">Add Complete M3U Playlist (Multiple Channels)</h3>
+              </div>
+              <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded px-1.5 font-black uppercase">BULK IMPORT</span>
+            </div>
+            
+            <p className="text-slate-400 text-xs leading-relaxed font-sans font-medium">
+              Enter a live playlist URL link below (like <code className="text-blue-400 bg-slate-950 px-1 py-0.5 rounded font-mono text-[10px]">https://go.skym3u.top/ye6r.m3u</code>) to download and extract multiple stations instantly.
+            </p>
+
+            <div className="space-y-3">
+              {/* Option 1: URL Input Field */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                  <Download className="w-3.5 h-3.5 text-blue-500" /> Playlist Link URL (.m3u/.m3u8)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="admin-m3u-url-input"
+                    type="url"
+                    value={m3uUrl}
+                    onChange={(e) => setM3uUrl(e.target.value)}
+                    placeholder="e.g. https://go.skym3u.top/ye6r.m3u"
+                    className="flex-grow bg-slate-950 border border-slate-850 rounded-sm px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50"
+                  />
+                  <button
+                    id="admin-import-link-btn"
+                    type="button"
+                    disabled={isLoaderFetching}
+                    onClick={handleFetchM3UPlaylist}
+                    className={`flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 font-bold text-xs px-4 py-2 rounded-sm transition whitespace-nowrap select-none ${isLoaderFetching ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isLoaderFetching ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Fetch & Import
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 2: Raw Text Clipboard Fallback */}
+              <div className="space-y-1 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Or Paste Raw M3U Contents Here (Direct Fallback)
+                  </label>
+                  {m3uText && (
+                    <button
+                      id="clear-raw-m3u"
+                      onClick={() => setM3uText('')}
+                      className="text-[9px] text-rose-450 hover:text-rose-400 transition underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  id="admin-m3u-textarea"
+                  rows={4}
+                  value={m3uText}
+                  onChange={(e) => setM3uText(e.target.value)}
+                  placeholder={`#EXTM3U\n#EXTINF:-1 tvg-logo="⚽" group-title="Sports", Sky Sports HD\nhttps://example.com/sportstream.m3u8`}
+                  className="w-full bg-slate-950 font-mono text-[10px] text-slate-300 border border-slate-850 rounded-sm p-3 focus:outline-none focus:border-blue-500/50 resize-y"
+                />
+                
+                <button
+                  id="admin-parse-m3u-raw-btn"
+                  type="button"
+                  onClick={() => processM3UText(m3uText)}
+                  className="w-full mt-1 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white text-xs font-semibold py-2.5 rounded-sm transition border border-slate-850"
+                >
+                  <ListPlus className="w-3.5 h-3.5 text-blue-400" /> Parse & Add Raw Playlist Text
+                </button>
+              </div>
             </div>
           </div>
 
@@ -756,6 +892,25 @@ export default function AdminPanel({
                 </div>
               </div>
 
+              {/* Dynamic On/Off Channel Dashboard Visibility Toggle */}
+              <div className="md:col-span-2 flex items-center gap-3 bg-slate-950/40 p-3.5 rounded border border-slate-850">
+                <div className="flex items-center h-5">
+                  <input
+                    id="admin-input-enabled"
+                    type="checkbox"
+                    checked={manualEnabled}
+                    onChange={(e) => setManualEnabled(e.target.checked)}
+                    className="w-4.5 h-4.5 bg-slate-950 border border-slate-800 rounded checked:bg-blue-650 focus:ring-blue-500 focus:ring-2 text-blue-600 cursor-pointer"
+                  />
+                </div>
+                <div className="text-xs">
+                  <label htmlFor="admin-input-enabled" className="font-bold text-slate-200 cursor-pointer flex items-center gap-1.5">
+                     Channel Active Status (Visible on Dashboard)
+                  </label>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Toggle this off to immediately stop broadcasting this channel on the home dashboard page without deleting the streams from database.</p>
+                </div>
+              </div>
+
               <div className="md:col-span-2 pt-2 flex flex-col sm:flex-row gap-2">
                 {editingChannelId ? (
                   <>
@@ -804,7 +959,7 @@ export default function AdminPanel({
                 <div 
                   id={`admin-ch-row-${chan.id}`}
                   key={chan.id} 
-                  className="flex items-center justify-between p-3.5 hover:bg-slate-900/80 transition"
+                  className={`flex items-center justify-between p-3.5 hover:bg-slate-900/80 transition ${chan.enabled === false ? 'opacity-60 bg-slate-950/25' : ''}`}
                 >
                   <div className="flex items-center gap-3 overflow-hidden min-w-0 pr-4">
                     <div className="w-8 h-8 flex items-center justify-center bg-slate-950 border border-slate-800 rounded-sm shrink-0">
@@ -816,12 +971,29 @@ export default function AdminPanel({
                         <span className="text-[9px] bg-slate-950 text-slate-400 px-1.5 py-0.5 rounded font-mono border border-slate-800">
                           {chan.category}
                         </span>
+                        {chan.enabled === false && (
+                          <span className="text-[8px] bg-rose-500/10 text-rose-450 px-1 py-0.5 border border-rose-500/20 rounded font-black font-mono uppercase tracking-wider">
+                            OFFLINE
+                          </span>
+                        )}
                       </div>
                       <p className="text-[10px] text-slate-400 truncate mt-0.5 font-mono">{chan.streamUrl}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      id={`admin-status-toggle-${chan.id}`}
+                      onClick={() => toggleChannelStatus(chan)}
+                      className={`p-2 border rounded transition ${chan.enabled !== false ? 'bg-emerald-950/40 hover:bg-emerald-900 text-emerald-400 border-emerald-500/20' : 'bg-slate-950 hover:bg-slate-900 text-slate-500 border-slate-800'}`}
+                      title={chan.enabled !== false ? "Disable (Hide from Dashboard)" : "Enable (Show on Dashboard)"}
+                    >
+                      {chan.enabled !== false ? (
+                        <Eye className="w-3.5 h-3.5" />
+                      ) : (
+                        <EyeOff className="w-3.5 h-3.5" />
+                      )}
+                    </button>
                     <button
                       id={`admin-edit-btn-${chan.id}`}
                       onClick={() => startEditingChannel(chan)}

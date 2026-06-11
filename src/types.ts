@@ -18,6 +18,7 @@ export interface Channel {
   nextShow: string;
   guide: GuideEvent[];
   isDefault?: boolean;
+  enabled?: boolean;
 }
 
 export interface UserSettings {

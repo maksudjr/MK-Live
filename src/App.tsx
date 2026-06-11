@@ -24,8 +24,19 @@ export default function App() {
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [utcTime, setUtcTime] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'home' | 'admin' | 'settings'>('home');
-  const [performanceAlert, setPerformanceAlert] = useState<string>('Use Wifi connection or High speed connection for best performance.');
-  const [categoryOrder, setCategoryOrder] = useState<string[]>(['Sports', 'News', 'Cartoons', 'Others']);
+  const [performanceAlert, setPerformanceAlert] = useState<string>(() => {
+    return localStorage.getItem('mklive_performance_alert') || 'Use Wifi connection or High speed connection for best performance.';
+  });
+  const [categoryOrder, setCategoryOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('mklive_category_order');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return ['Sports', 'News', 'Cartoons', 'Others'];
+  });
   const [settings, setSettings] = useState<UserSettings>({
     favorites: [],
     theme: 'dark',
@@ -101,6 +112,7 @@ export default function App() {
         const data = docSnap.data();
         if (data && typeof data.text === 'string') {
           setPerformanceAlert(data.text);
+          localStorage.setItem('mklive_performance_alert', data.text);
         }
       } else {
         // Automatically publish the default alert if none exists
@@ -122,6 +134,7 @@ export default function App() {
         const data = docSnap.data();
         if (data && Array.isArray(data.order)) {
           setCategoryOrder(data.order);
+          localStorage.setItem('mklive_category_order', JSON.stringify(data.order));
         }
       } else {
         // Automatically publish default category order if none exists
@@ -137,7 +150,12 @@ export default function App() {
 
   // Update selected channel fallback once channels are loaded
   useEffect(() => {
-    if (channels.length > 0 && !selectedChannelId) {
+    const activeChs = channels.filter(c => c.enabled !== false);
+    if (activeChs.length > 0) {
+      if (!selectedChannelId || !activeChs.some(c => c.id === selectedChannelId)) {
+        setSelectedChannelId(activeChs[0].id);
+      }
+    } else if (channels.length > 0 && !selectedChannelId) {
       setSelectedChannelId(channels[0].id);
     }
   }, [channels, selectedChannelId]);
@@ -193,19 +211,25 @@ export default function App() {
 
   const handleUpdatePerformanceAlert = async (newAlert: string) => {
     try {
+      localStorage.setItem('mklive_performance_alert', newAlert);
+      setPerformanceAlert(newAlert);
       const alertDocRef = doc(db, 'app_configs', 'performance_alert');
       await setDoc(alertDocRef, { text: newAlert });
     } catch (error) {
-       handleFirestoreError(error, OperationType.WRITE, 'app_configs/performance_alert');
+       console.error('Firestore warning alert save deferred:', error);
+       // Suppress fatal block so user can still see and benefit from client-side state updates
     }
   };
 
   const handleUpdateCategoryOrder = async (newOrder: string[]) => {
     try {
+      localStorage.setItem('mklive_category_order', JSON.stringify(newOrder));
+      setCategoryOrder(newOrder);
       const orderDocRef = doc(db, 'app_configs', 'category_order');
       await setDoc(orderDocRef, { order: newOrder });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'app_configs/category_order');
+      console.error('Firestore category order save deferred:', error);
+      // Suppress fatal block so user's client rearrangement reflects instantly
     }
   };
 
@@ -227,8 +251,11 @@ export default function App() {
     });
   };
 
+  // Filter active channels for homepage dashboard and video player
+  const activeChannels = channels.filter(c => c.enabled !== false);
+
   // Find the currently active playing source object
-  const activePlayingChannel = channels.find(c => c.id === selectedChannelId) || channels[0];
+  const activePlayingChannel = activeChannels.find(c => c.id === selectedChannelId) || activeChannels[0];
 
   // Pick background base styling classes based on active setting theme
   const getThemeBackgroundClass = () => {
@@ -351,7 +378,7 @@ export default function App() {
               {/* Selection Directory: Guides, Channels List and search */}
               <div className="flex-grow overflow-hidden flex flex-col min-h-0 theme-custom-bg">
                 <ChannelGuide
-                  channels={channels}
+                  channels={activeChannels}
                   selectedChannelId={selectedChannelId}
                   onSelectChannel={(id) => startTransition(() => setSelectedChannelId(id))}
                   favorites={settings.favorites}
@@ -400,7 +427,7 @@ export default function App() {
             >
               <SettingsPanel
                 settings={settings}
-                channels={channels}
+                channels={activeChannels}
                 onUpdateSettings={handleUpdateSettings}
               />
             </motion.div>
