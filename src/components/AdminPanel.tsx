@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { 
   Plus, Trash2, Key, Database, RefreshCw, Sparkles, 
-  CheckCircle, HelpCircle, Code, ListPlus, X, ShieldAlert, Upload, Edit
+  CheckCircle, HelpCircle, Code, ListPlus, X, ShieldAlert, Upload, Edit,
+  ArrowUp, ArrowDown, Move
 } from 'lucide-react';
 import { Channel, GuideEvent } from '../types';
 import ChannelLogo from './ChannelLogo';
@@ -15,6 +16,8 @@ interface AdminPanelProps {
   performanceAlert: string;
   onUpdatePerformanceAlert: (newAlert: string) => Promise<void>;
   language?: LanguageType;
+  categoryOrder?: string[];
+  onUpdateCategoryOrder?: (newOrder: string[]) => Promise<void>;
 }
 
 export default function AdminPanel({ 
@@ -24,7 +27,9 @@ export default function AdminPanel({
   onClose,
   performanceAlert,
   onUpdatePerformanceAlert,
-  language
+  language,
+  categoryOrder = [],
+  onUpdateCategoryOrder
  }: AdminPanelProps) {
   // Secured credential gate
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
@@ -247,7 +252,7 @@ export default function AdminPanel({
     try {
       const lines = m3uText.split('\n');
       const parsedChannels: Channel[] = [];
-      let currentInfo: { name: string; logo: string; logoUrl?: string } | null = null;
+      let currentInfo: { name: string; logo: string; logoUrl?: string; category?: string } | null = null;
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -258,8 +263,12 @@ export default function AdminPanel({
           let logo = '📺';
 
           // Extract logo from tvg-logo="..." or logo="..."
-          const logoMatch = line.match(/(?:tvg-logo|logo)="([^"]+)"/);
+          const logoMatch = line.match(/(?:tvg-logo|logo)="([^"]+)"/i);
           let logoUrl = logoMatch ? logoMatch[1] : undefined;
+
+          // Extract category from group-title="..." or tvg-group="..."
+          const groupMatch = line.match(/(?:group-title|tvg-group)="([^"]+)"/i);
+          let parsedCategory = groupMatch ? groupMatch[1].trim() : '';
 
           // Try to extract the channel name at the end of the line (after the last comma)
           const commaIndex = line.lastIndexOf(',');
@@ -276,15 +285,15 @@ export default function AdminPanel({
           else if (name.toLowerCase().includes('fight') || name.toLowerCase().includes('ufc') || name.toLowerCase().includes('mma')) logo = '🥊';
           else if (name.toLowerCase().includes('golf')) logo = '⛳';
 
-          currentInfo = { name, logo, logoUrl };
+          currentInfo = { name, logo, logoUrl, category: parsedCategory };
         } else if (line.startsWith('http://') || line.startsWith('https://')) {
           // Line acts as stream url
           if (currentInfo) {
-            const sportType = detectCategory(currentInfo.name);
+            const sportType = currentInfo.category || detectCategory(currentInfo.name);
             const chan: Channel = {
               id: `ch-m3u-${Date.now()}-${parsedChannels.length}`,
               name: currentInfo.name,
-              logo: currentInfo.logo,
+              logo: currentInfo.logoUrl || currentInfo.logo,
               streamUrl: line,
               category: sportType,
               currentShow: `${currentInfo.name} Live Stream`,
@@ -340,6 +349,52 @@ export default function AdminPanel({
       return 'Sports';
     }
     return 'Others';
+  };
+
+  // Get all unique categories from categoryOrder prop followed by any extra ones from active channels
+  const categoriesInDb = Array.from(
+    new Set(
+      channels
+        .map((c) => c.category)
+        .filter((cat): cat is string => typeof cat === 'string' && cat.trim() !== '')
+    )
+  );
+
+  // Combine categoryOrder with extra categories in database
+  const currentCategoryList = Array.from(new Set([
+    ...(categoryOrder || []),
+    ...categoriesInDb,
+    'Sports', 'News', 'Cartoons', 'Others'
+  ])).filter(Boolean);
+
+  const moveCategory = async (index: number, direction: 'up' | 'down') => {
+    if (!onUpdateCategoryOrder) return;
+    const newList = [...currentCategoryList];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= newList.length) return;
+    
+    // Swap items
+    const temp = newList[index];
+    newList[index] = newList[targetIndex];
+    newList[targetIndex] = temp;
+    
+    try {
+      await onUpdateCategoryOrder(newList);
+      showFeedback('success', 'Home page category serial order updated successfully!');
+    } catch (err: any) {
+      showFeedback('error', `Failed to update category serial: ${err.message || err}`);
+    }
+  };
+
+  const resetCategoryOrder = async () => {
+    if (!onUpdateCategoryOrder) return;
+    try {
+      await onUpdateCategoryOrder(['Sports', 'News', 'Cartoons', 'Others']);
+      showFeedback('success', 'Reset category serial to default order!');
+    } catch (err: any) {
+      showFeedback('error', `Failed to reset category serial: ${err.message || err}`);
+    }
   };
 
   const removeChannel = (id: string) => {
@@ -516,6 +571,71 @@ export default function AdminPanel({
             >
               <Sparkles className="w-3.5 h-3.5" /> Analyze Playlist & Populate Guide Telemetry
             </button>
+          </div>
+
+          {/* Homepage Category Serial Manager */}
+          <div className="bg-slate-900 border border-slate-800 rounded-sm p-5 space-y-4">
+            <div className="flex items-center justify-between font-sans">
+              <div className="flex items-center gap-2">
+                <Move className="w-4.5 h-4.5 text-blue-500" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-blue-400">Homepage Category Serial Manager</h3>
+              </div>
+              <button
+                id="admin-reset-category-order-btn"
+                type="button"
+                onClick={resetCategoryOrder}
+                className="text-[10px] text-blue-400 hover:text-blue-300 underline transition"
+              >
+                Reset Default Order
+              </button>
+            </div>
+            <p className="text-slate-400 text-xs leading-relaxed font-sans">
+              Arrange category blocks to shift priority on the TV directory slide view. Tap up or down switches next to any category to persistently realign their ordering instantly.
+            </p>
+            
+            <div className="bg-slate-950/80 border border-slate-850 rounded divide-y divide-slate-850 overflow-hidden">
+              {currentCategoryList.map((cat, index) => {
+                const isFirst = index === 0;
+                const isLast = index === currentCategoryList.length - 1;
+                return (
+                  <div
+                    id={`admin-category-order-item-${cat}`}
+                    key={cat}
+                    className="flex items-center justify-between px-3 py-2 text-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-bold">
+                        #{index + 1}
+                      </span>
+                      <span className="font-bold text-slate-200">{cat}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        id={`btn-move-category-up-${cat}`}
+                        type="button"
+                        disabled={isFirst}
+                        onClick={() => moveCategory(index, 'up')}
+                        className={`p-1 border border-slate-850 rounded transition ${isFirst ? 'opacity-30 cursor-not-allowed text-slate-750' : 'bg-slate-900 text-slate-400 hover:text-blue-400 hover:border-slate-700'}`}
+                        title="Move Up"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        id={`btn-move-category-down-${cat}`}
+                        type="button"
+                        disabled={isLast}
+                        onClick={() => moveCategory(index, 'down')}
+                        className={`p-1 border border-slate-850 rounded transition ${isLast ? 'opacity-30 cursor-not-allowed text-slate-755' : 'bg-slate-900 text-slate-400 hover:text-blue-400 hover:border-slate-700'}`}
+                        title="Move Down"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Form to Add / Edit Single Station */}

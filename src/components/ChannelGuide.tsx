@@ -14,6 +14,7 @@ interface ChannelGuideProps {
   onToggleFavorite: (id: string) => void;
   textScale: 'sm' | 'md' | 'lg';
   language?: LanguageType;
+  categoryOrder?: string[];
 }
 
 export default function ChannelGuide({
@@ -23,7 +24,8 @@ export default function ChannelGuide({
   favorites,
   onToggleFavorite,
   textScale,
-  language
+  language,
+  categoryOrder = []
 }: ChannelGuideProps) {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -38,8 +40,14 @@ export default function ChannelGuide({
         .filter((cat): cat is string => typeof cat === 'string' && cat.trim() !== '')
     )
   );
-  const coreCats = ['Sports', 'News', 'Cartoons', 'Others'];
-  const CATEGORIES = ['All', ...Array.from(new Set([...coreCats, ...existingCats]))];
+
+  // Use the serialized category order, fallback to defaults, and append any remaining existing categories.
+  const baseOrder = categoryOrder.length > 0 ? categoryOrder : ['Sports', 'News', 'Cartoons', 'Others'];
+  const fullOrder = Array.from(new Set([...baseOrder, ...existingCats]));
+  
+  // Filter category list so that we only show categories that actually exist in the channel data (plus core categories if desired)
+  const activeCats = fullOrder.filter(cat => existingCats.includes(cat) || ['Sports', 'News', 'Cartoons', 'Others'].includes(cat));
+  const CATEGORIES = ['All', ...activeCats];
 
   // Selected channel details
   const currentChannel = channels.find(c => c.id === selectedChannelId) || channels[0];

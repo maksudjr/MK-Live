@@ -25,6 +25,7 @@ export default function App() {
   const [utcTime, setUtcTime] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'home' | 'admin' | 'settings'>('home');
   const [performanceAlert, setPerformanceAlert] = useState<string>('Use Wifi connection or High speed connection for best performance.');
+  const [categoryOrder, setCategoryOrder] = useState<string[]>(['Sports', 'News', 'Cartoons', 'Others']);
   const [settings, setSettings] = useState<UserSettings>({
     favorites: [],
     theme: 'dark',
@@ -113,6 +114,27 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Subscribe to real-time changes in category serialization order configuration
+  useEffect(() => {
+    const orderDocRef = doc(db, 'app_configs', 'category_order');
+    const unsubscribe = onSnapshot(orderDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && Array.isArray(data.order)) {
+          setCategoryOrder(data.order);
+        }
+      } else {
+        // Automatically publish default category order if none exists
+        setDoc(orderDocRef, { order: ['Sports', 'News', 'Cartoons', 'Others'] })
+          .catch(err => console.error('Error auto-seeding category_order:', err));
+      }
+    }, (error) => {
+      console.warn('Error listening to category order configs:', error);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   // Update selected channel fallback once channels are loaded
   useEffect(() => {
     if (channels.length > 0 && !selectedChannelId) {
@@ -175,6 +197,15 @@ export default function App() {
       await setDoc(alertDocRef, { text: newAlert });
     } catch (error) {
        handleFirestoreError(error, OperationType.WRITE, 'app_configs/performance_alert');
+    }
+  };
+
+  const handleUpdateCategoryOrder = async (newOrder: string[]) => {
+    try {
+      const orderDocRef = doc(db, 'app_configs', 'category_order');
+      await setDoc(orderDocRef, { order: newOrder });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'app_configs/category_order');
     }
   };
 
@@ -327,6 +358,7 @@ export default function App() {
                   onToggleFavorite={toggleFavoriteChannel}
                   textScale={settings.textScale}
                   language={settings.language}
+                  categoryOrder={categoryOrder}
                 />
               </div>
             </motion.div>
@@ -350,6 +382,8 @@ export default function App() {
                 performanceAlert={performanceAlert}
                 onUpdatePerformanceAlert={handleUpdatePerformanceAlert}
                 language={settings.language}
+                categoryOrder={categoryOrder}
+                onUpdateCategoryOrder={handleUpdateCategoryOrder}
               />
             </motion.div>
           )}
