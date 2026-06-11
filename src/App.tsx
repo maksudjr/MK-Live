@@ -1,4 +1,4 @@
-import { useState, useEffect, startTransition, useTransition } from 'react';
+import { useState, useEffect, useRef, startTransition, useTransition } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Tv, Compass, ShieldAlert, Settings, Radio, 
@@ -58,6 +58,9 @@ export default function App() {
   });
   const [isPending, startLayoutTransition] = useTransition();
   const [isFloatingPlayer, setIsFloatingPlayer] = useState<boolean>(false);
+
+  const attemptedSeedingAlertRef = useRef(false);
+  const attemptedSeedingOrderRef = useRef(false);
 
   // Load persistence configurations once and update clock, plus listen to Firestore channels
   useEffect(() => {
@@ -150,8 +153,11 @@ export default function App() {
         }
       } else {
         // Automatically publish the default alert if none exists
-        setDoc(alertDocRef, { text: 'Use Wifi connection or High speed connection for best performance.' })
-          .catch(err => console.error('Error auto-seeding performance alert doc:', err));
+        if (!attemptedSeedingAlertRef.current) {
+          attemptedSeedingAlertRef.current = true;
+          setDoc(alertDocRef, { text: 'Use Wifi connection or High speed connection for best performance.' })
+            .catch(err => console.error('Error auto-seeding performance alert doc:', err));
+        }
       }
       setFirebaseQuotaError(null);
     }, (error) => {
@@ -178,8 +184,11 @@ export default function App() {
         }
       } else {
         // Automatically publish default category order if none exists
-        setDoc(orderDocRef, { order: ['Sports', 'News', 'Cartoons', 'Others'] })
-          .catch(err => console.error('Error auto-seeding category_order:', err));
+        if (!attemptedSeedingOrderRef.current) {
+          attemptedSeedingOrderRef.current = true;
+          setDoc(orderDocRef, { order: ['Sports', 'News', 'Cartoons', 'Others'] })
+            .catch(err => console.error('Error auto-seeding category_order:', err));
+        }
       }
       setFirebaseQuotaError(null);
     }, (error) => {

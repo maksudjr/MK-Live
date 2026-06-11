@@ -56,6 +56,9 @@ export default function AdminPanel({
   const [customCategory, setCustomCategory] = useState<string>('');
   const [manualEnabled, setManualEnabled] = useState<boolean>(true);
 
+  // Marked channels to remove state helper
+  const [markedChannelIds, setMarkedChannelIds] = useState<string[]>([]);
+
   // M3U Playlist Fetcher & Parser State
   const [m3uUrl, setM3uUrl] = useState<string>('');
   const [m3uText, setM3uText] = useState<string>('');
@@ -428,6 +431,50 @@ export default function AdminPanel({
     });
     const statusText = nextStatus ? 'Broadcasting ON (Visible on Dashboard)' : 'Broadcasting OFF (Hidden from Dashboard)';
     showFeedback('success', `Channel "${chan.name}" changed to ${statusText}!`);
+  };
+
+  const removeAllOfflineChannels = () => {
+    const offlineChannels = channels.filter(c => c.enabled === false);
+    if (offlineChannels.length === 0) {
+      showFeedback('error', 'There are no offline channels to remove.');
+      return;
+    }
+    if (window.confirm(`Are you sure you want to permanently delete all ${offlineChannels.length} offline channel(s)? This cannot be undone.`)) {
+      const remaining = channels.filter(c => c.enabled !== false);
+      startTransition(() => {
+        onUpdateChannels(remaining);
+      });
+      // Clear marked IDs if they were deleted
+      setMarkedChannelIds(prev => prev.filter(id => remaining.some(c => c.id === id)));
+      showFeedback('success', `Successfully removed all ${offlineChannels.length} offline channels!`);
+    }
+  };
+
+  const removeMarkedChannels = () => {
+    if (markedChannelIds.length === 0) {
+      showFeedback('error', 'No channels are marked for removal. Check the mark checkboxes first.');
+      return;
+    }
+    if (window.confirm(`Are you sure you want to permanently delete all ${markedChannelIds.length} marked channel(s)?`)) {
+      const remaining = channels.filter(c => !markedChannelIds.includes(c.id));
+      startTransition(() => {
+        onUpdateChannels(remaining);
+      });
+      setMarkedChannelIds([]);
+      showFeedback('success', `Successfully removed ${markedChannelIds.length} marked channels!`);
+    }
+  };
+
+  const toggleSelectAllChannels = () => {
+    if (markedChannelIds.length === channels.length && channels.length > 0) {
+      // Unmark all
+      setMarkedChannelIds([]);
+      showFeedback('success', 'Cleared all channel marks.');
+    } else {
+      // Mark all
+      setMarkedChannelIds(channels.map(c => c.id));
+      showFeedback('success', `Marked all ${channels.length} channels for removal.`);
+    }
   };
 
 
@@ -954,14 +1001,73 @@ export default function AdminPanel({
               </span>
             </div>
 
+            {/* Bulk Actions / Multi-Selection Toolbar */}
+            <div className="bg-slate-950 border border-slate-850/80 rounded p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-sans">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  id="admin-select-all-btn"
+                  onClick={toggleSelectAllChannels}
+                  className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 py-1.5 rounded transition text-[10px] font-black uppercase tracking-wider"
+                >
+                  {markedChannelIds.length === channels.length && channels.length > 0 ? 'Deselect All' : 'Select / Mark All'}
+                </button>
+                <span className="text-slate-800">|</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Marked: <strong className="text-rose-450">{markedChannelIds.length}</strong> / {channels.length}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Remove All Offline Button */}
+                <button
+                  type="button"
+                  id="admin-remove-offline-btn"
+                  onClick={removeAllOfflineChannels}
+                  className="bg-slate-900 border border-slate-800 hover:border-rose-950 text-slate-300 hover:text-rose-450 hover:bg-rose-950/10 py-1.5 px-3 rounded transition flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider"
+                  title="Remove all channels currently toggled off (offline)"
+                >
+                  <EyeOff className="w-3.5 h-3.5 text-rose-500" /> Remove Offline ({channels.filter(c => c.enabled === false).length})
+                </button>
+
+                {/* Remove Marked Button */}
+                <button
+                  type="button"
+                  id="admin-remove-marked-btn"
+                  onClick={removeMarkedChannels}
+                  disabled={markedChannelIds.length === 0}
+                  className={`py-1.5 px-3 rounded transition flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider ${markedChannelIds.length > 0 ? 'bg-rose-950/60 text-rose-400 hover:bg-rose-900 hover:text-white border border-rose-500/20' : 'bg-slate-900 text-slate-600 border border-slate-850 opacity-40 cursor-not-allowed'}`}
+                  title="Remove all currently marked channels"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-450" /> Delete Marked ({markedChannelIds.length})
+                </button>
+              </div>
+            </div>
+
             <div className="bg-slate-900 border border-slate-800 rounded-sm overflow-hidden divide-y divide-slate-850 font-sans">
               {channels.map((chan) => (
                 <div 
                   id={`admin-ch-row-${chan.id}`}
                   key={chan.id} 
-                  className={`flex items-center justify-between p-3.5 hover:bg-slate-900/80 transition ${chan.enabled === false ? 'opacity-60 bg-slate-950/25' : ''}`}
+                  className={`flex items-center justify-between p-3.5 hover:bg-slate-900/80 transition ${chan.enabled === false ? 'opacity-60 bg-slate-950/25' : ''} ${markedChannelIds.includes(chan.id) ? 'bg-rose-950/10 border-l border-l-rose-500' : ''}`}
                 >
-                  <div className="flex items-center gap-3 overflow-hidden min-w-0 pr-4">
+                  <div className="flex items-center gap-3.5 overflow-hidden min-w-0 pr-4">
+                    {/* Mark checkbox to remove */}
+                    <input
+                      type="checkbox"
+                      id={`admin-ch-mark-${chan.id}`}
+                      checked={markedChannelIds.includes(chan.id)}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked;
+                        setMarkedChannelIds(prev => 
+                          isChecked 
+                            ? [...prev, chan.id] 
+                            : prev.filter(id => id !== chan.id)
+                        );
+                      }}
+                      className="w-4 h-4 bg-slate-950 border border-slate-800 rounded checked:bg-rose-600 focus:ring-rose-500 text-rose-600 cursor-pointer shrink-0"
+                      title="Mark this channel to remove"
+                    />
                     <div className="w-8 h-8 flex items-center justify-center bg-slate-950 border border-slate-800 rounded-sm shrink-0">
                       <ChannelLogo logo={chan.logo} name={chan.name} className="w-6 h-6 object-contain rounded-sm" fallbackSize="text-sm" />
                     </div>
