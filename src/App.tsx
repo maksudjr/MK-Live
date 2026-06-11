@@ -20,7 +20,17 @@ const LOCAL_CHANNELS_KEY = 'mklive_channels_v1';
 const LOCAL_SETTINGS_KEY = 'mklive_settings_v1';
 
 export default function App() {
-  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channels, setChannels] = useState<Channel[]>(() => {
+    const cached = localStorage.getItem(LOCAL_CHANNELS_KEY);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (_) {}
+    }
+    return DEFAULT_CHANNELS;
+  });
+  const [firebaseQuotaError, setFirebaseQuotaError] = useState<string | null>(null);
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [utcTime, setUtcTime] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'home' | 'admin' | 'settings'>('home');
@@ -97,8 +107,32 @@ export default function App() {
       // Keep channels sorted alphabetically by name to ensure stable view order
       dbChannels.sort((a, b) => a.name.localeCompare(b.name));
       setChannels(dbChannels);
+      localStorage.setItem(LOCAL_CHANNELS_KEY, JSON.stringify(dbChannels));
+      setFirebaseQuotaError(null);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'channels');
+      const errMessage = error instanceof Error ? error.message : String(error);
+      const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
+      if (isQuota) {
+        setFirebaseQuotaError(errMessage);
+      }
+      console.warn('Real-time channels fetch deferred to local cache:', error);
+      
+      const cached = localStorage.getItem(LOCAL_CHANNELS_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setChannels(parsed);
+          }
+        } catch (_) {}
+      }
+
+      // Comply with logging and diagnostic guidelines without fatal crash
+      try {
+        handleFirestoreError(error, OperationType.LIST, 'channels');
+      } catch (err) {
+        console.error('Handled Firestore list error:', err);
+      }
     });
 
     return () => unsubscribe();
@@ -119,7 +153,13 @@ export default function App() {
         setDoc(alertDocRef, { text: 'Use Wifi connection or High speed connection for best performance.' })
           .catch(err => console.error('Error auto-seeding performance alert doc:', err));
       }
+      setFirebaseQuotaError(null);
     }, (error) => {
+      const errMessage = error instanceof Error ? error.message : String(error);
+      const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
+      if (isQuota) {
+        setFirebaseQuotaError(errMessage);
+      }
       console.warn('Error listening to app performance alert configs:', error);
     });
 
@@ -141,7 +181,13 @@ export default function App() {
         setDoc(orderDocRef, { order: ['Sports', 'News', 'Cartoons', 'Others'] })
           .catch(err => console.error('Error auto-seeding category_order:', err));
       }
+      setFirebaseQuotaError(null);
     }, (error) => {
+      const errMessage = error instanceof Error ? error.message : String(error);
+      const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
+      if (isQuota) {
+        setFirebaseQuotaError(errMessage);
+      }
       console.warn('Error listening to category order configs:', error);
     });
 
@@ -173,6 +219,10 @@ export default function App() {
 
   const handleUpdateChannels = async (updatedList: Channel[]) => {
     try {
+      // Always immediately save states and local storage for perfect offline resilience
+      setChannels(updatedList);
+      localStorage.setItem(LOCAL_CHANNELS_KEY, JSON.stringify(updatedList));
+
       const previousIds = channels.map(c => c.id);
       const updatedIds = updatedList.map(c => c.id);
       const deletedIds = previousIds.filter(id => !updatedIds.includes(id));
@@ -191,20 +241,46 @@ export default function App() {
       if (updatedList.length > 0 && !updatedList.some(c => c.id === selectedChannelId)) {
         setSelectedChannelId(updatedList[0].id);
       }
+      setFirebaseQuotaError(null);
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'channels');
+      const errMessage = error instanceof Error ? error.message : String(error);
+      const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
+      if (isQuota) {
+        setFirebaseQuotaError(errMessage);
+      }
+      console.warn('Failed to sync channel updates to Firestore, client fallback active:', error);
+      try {
+        handleFirestoreError(error, OperationType.WRITE, 'channels');
+      } catch (err) {
+        console.error('Firestore warning block suppressed:', err);
+      }
     }
   };
 
   const handleResetChannels = async () => {
     if (window.confirm('Do you want to reset channel database to default streams? This will wipe your custom URLs.')) {
       try {
+        const resetList = [...DEFAULT_CHANNELS];
+        setChannels(resetList);
+        localStorage.setItem(LOCAL_CHANNELS_KEY, JSON.stringify(resetList));
+
         for (const chan of channels) {
           await deleteDoc(doc(db, 'channels', chan.id));
         }
         await seedDefaultChannelsToFirestore();
+        setFirebaseQuotaError(null);
       } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, 'channels');
+        const errMessage = error instanceof Error ? error.message : String(error);
+        const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
+        if (isQuota) {
+          setFirebaseQuotaError(errMessage);
+        }
+        console.warn('Reset channels Firestore write deferred:', error);
+        try {
+          handleFirestoreError(error, OperationType.DELETE, 'channels');
+        } catch (err) {
+          console.error('Firestore reset block suppressed:', err);
+        }
       }
     }
   };
@@ -215,9 +291,14 @@ export default function App() {
       setPerformanceAlert(newAlert);
       const alertDocRef = doc(db, 'app_configs', 'performance_alert');
       await setDoc(alertDocRef, { text: newAlert });
+      setFirebaseQuotaError(null);
     } catch (error) {
+       const errMessage = error instanceof Error ? error.message : String(error);
+       const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
+       if (isQuota) {
+         setFirebaseQuotaError(errMessage);
+       }
        console.error('Firestore warning alert save deferred:', error);
-       // Suppress fatal block so user can still see and benefit from client-side state updates
     }
   };
 
@@ -227,9 +308,14 @@ export default function App() {
       setCategoryOrder(newOrder);
       const orderDocRef = doc(db, 'app_configs', 'category_order');
       await setDoc(orderDocRef, { order: newOrder });
+      setFirebaseQuotaError(null);
     } catch (error) {
+      const errMessage = error instanceof Error ? error.message : String(error);
+      const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
+      if (isQuota) {
+        setFirebaseQuotaError(errMessage);
+      }
       console.error('Firestore category order save deferred:', error);
-      // Suppress fatal block so user's client rearrangement reflects instantly
     }
   };
 
@@ -316,6 +402,51 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {/* Elegant Warning Banner for Firestore Daily Quotas */}
+      {firebaseQuotaError && (
+        <div 
+          id="firebase-quota-alert-banner" 
+          className="shrink-0 bg-amber-950/95 border-b border-amber-500/30 px-4 py-2.5 flex items-start gap-3 z-30 transition-all font-sans"
+        >
+          <ShieldAlert className="w-4.5 h-4.5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+          <div className="flex-grow text-xs leading-normal">
+            <span className="font-extrabold text-amber-400 uppercase tracking-wider block sm:inline mr-1.5">
+              Database Limit Reached:
+            </span>
+            <span className="text-amber-200/90 font-medium">
+              Daily write operations are currently offline due to free-tier usage caps, but offline local storage synchronization has activated automatically! You can keep adjusting, creating, or toggling channels safely. Your custom streams and settings will persist on this device.
+            </span>
+            <span className="block mt-1 text-[10px] text-amber-400/90 leading-relaxed">
+              This quota will naturally reset tomorrow. You can monitor plans and statistics on the{' '}
+              <a 
+                href="https://firebase.google.com/pricing#cloud-firestore" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="underline hover:text-amber-300 font-extrabold focus:outline-none"
+              >
+                Firebase Spark Plan (Enterprise Edition section)
+              </a>. Direct project management or manual database scaling is available at your{' '}
+              <a 
+                href="https://console.firebase.google.com/project/premium-acronym-73n78/firestore/databases/ai-studio-32d69922-dece-43f8-9584-73406f6c959a/data?openUpgradeDialog=true" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="underline hover:text-amber-300 font-extrabold focus:outline-none"
+              >
+                Firestore Console Database Link
+              </a>.
+            </span>
+          </div>
+          <button 
+            id="close-quota-banner-btn"
+            onClick={() => setFirebaseQuotaError(null)} 
+            className="text-amber-400/70 hover:text-amber-250 transition p-1 hover:bg-amber-900/40 rounded shrink-0"
+            title="Dismiss notification"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Main viewport Container (Fits screen on Android and has customized tabs scroll) */}
       <main className="flex-grow flex flex-col overflow-hidden relative theme-custom-bg">
