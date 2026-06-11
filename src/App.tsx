@@ -5,7 +5,7 @@ import {
   Clock, Heart, List, HelpCircle, Power, X, ExternalLink
 } from 'lucide-react';
 
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 
 import { Channel, UserSettings } from './types';
@@ -30,7 +30,14 @@ export default function App() {
     }
     return DEFAULT_CHANNELS;
   });
-  const [firebaseQuotaError, setFirebaseQuotaError] = useState<string | null>(null);
+  const [firebaseQuotaError, _setFirebaseQuotaError] = useState<string | null>(null);
+  const isWritingRef = useRef<boolean>(false);
+  const quotaErrorRef = useRef<boolean>(false);
+
+  const setFirebaseQuotaError = (val: string | null) => {
+    _setFirebaseQuotaError(val);
+    quotaErrorRef.current = !!val;
+  };
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [utcTime, setUtcTime] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'home' | 'admin' | 'settings'>('home');
@@ -102,6 +109,11 @@ export default function App() {
     const channelsCollection = collection(db, 'channels');
 
     const unsubscribe = onSnapshot(channelsCollection, (snapshot) => {
+      if (isWritingRef.current || quotaErrorRef.current) {
+        console.log('Suppressing Firestore channels snapshot update to respect optimistic local changes.');
+        return;
+      }
+
       const dbChannels: Channel[] = [];
       snapshot.forEach((doc) => {
         dbChannels.push(doc.data() as Channel);
@@ -227,6 +239,7 @@ export default function App() {
   };
 
   const handleUpdateChannels = async (updatedList: Channel[]) => {
+    isWritingRef.current = true;
     try {
       // Always immediately save states and local storage for perfect offline resilience
       setChannels(updatedList);
@@ -236,14 +249,47 @@ export default function App() {
       const updatedIds = updatedList.map(c => c.id);
       const deletedIds = previousIds.filter(id => !updatedIds.includes(id));
 
+      interface Op {
+        type: 'set' | 'delete';
+        ref: any;
+        data?: any;
+      }
+      const operations: Op[] = [];
+
       // 1. Delete removed channels from Firestore
       for (const id of deletedIds) {
-        await deleteDoc(doc(db, 'channels', id));
+        operations.push({
+          type: 'delete',
+          ref: doc(db, 'channels', id)
+        });
       }
 
       // 2. Add or update active channel definitions in Firestore
       for (const chan of updatedList) {
-        await setDoc(doc(db, 'channels', chan.id), chan);
+        operations.push({
+          type: 'set',
+          ref: doc(db, 'channels', chan.id),
+          data: chan
+        });
+      }
+
+      // Chunk operations in batches of 300 to stay safely under Firestore limits
+      const batches: Op[][] = [];
+      const chunkSize = 300;
+      for (let i = 0; i < operations.length; i += chunkSize) {
+        batches.push(operations.slice(i, i + chunkSize));
+      }
+
+      for (const chunk of batches) {
+        const batch = writeBatch(db);
+        for (const op of chunk) {
+          if (op.type === 'delete') {
+            batch.delete(op.ref);
+          } else if (op.type === 'set') {
+            batch.set(op.ref, op.data);
+          }
+        }
+        await batch.commit();
       }
 
       // Fallback if current active selected stream gets deleted
@@ -263,20 +309,36 @@ export default function App() {
       } catch (err) {
         console.error('Firestore warning block suppressed:', err);
       }
+    } finally {
+      // Cooldown timer to prevent server snapshot callbacks from triggering during settle phase
+      setTimeout(() => {
+        isWritingRef.current = false;
+      }, 1500);
     }
   };
 
   const handleResetChannels = async () => {
     if (window.confirm('Do you want to reset channel database to default streams? This will wipe your custom URLs.')) {
+      isWritingRef.current = true;
       try {
         const resetList = [...DEFAULT_CHANNELS];
         setChannels(resetList);
         localStorage.setItem(LOCAL_CHANNELS_KEY, JSON.stringify(resetList));
 
+        // Let's delete all existing channels using batch
+        const deleteBatch = writeBatch(db);
         for (const chan of channels) {
-          await deleteDoc(doc(db, 'channels', chan.id));
+          deleteBatch.delete(doc(db, 'channels', chan.id));
         }
-        await seedDefaultChannelsToFirestore();
+        await deleteBatch.commit();
+
+        // Seed default channels using batch
+        const seedBatch = writeBatch(db);
+        for (const chan of DEFAULT_CHANNELS) {
+          seedBatch.set(doc(db, 'channels', chan.id), chan);
+        }
+        await seedBatch.commit();
+        
         setFirebaseQuotaError(null);
       } catch (error) {
         const errMessage = error instanceof Error ? error.message : String(error);
@@ -290,6 +352,10 @@ export default function App() {
         } catch (err) {
           console.error('Firestore reset block suppressed:', err);
         }
+      } finally {
+        setTimeout(() => {
+          isWritingRef.current = false;
+        }, 1500);
       }
     }
   };
