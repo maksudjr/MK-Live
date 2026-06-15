@@ -2,7 +2,7 @@ import React, { useState, useEffect, useTransition } from 'react';
 import { 
   Plus, Trash2, Key, Database, RefreshCw, Sparkles, ListPlus, Download,
   CheckCircle, HelpCircle, Code, X, ShieldAlert, Upload, Edit,
-  ArrowUp, ArrowDown, Move, Eye, EyeOff
+  ArrowUp, ArrowDown, Move, Eye, EyeOff, Star
 } from 'lucide-react';
 import { Channel, GuideEvent } from '../types';
 import ChannelLogo from './ChannelLogo';
@@ -55,6 +55,7 @@ export default function AdminPanel({
   const [manualCategory, setManualCategory] = useState<string>('Sports');
   const [customCategory, setCustomCategory] = useState<string>('');
   const [manualEnabled, setManualEnabled] = useState<boolean>(true);
+  const [manualIsFavorite, setManualIsFavorite] = useState<boolean>(false);
 
   // Marked channels to remove state helper
   const [markedChannelIds, setMarkedChannelIds] = useState<string[]>([]);
@@ -345,7 +346,8 @@ export default function AdminPanel({
             streamUrl: manualUrl.trim(),
             category: categoryToSave,
             logo: manualLogo,
-            enabled: manualEnabled
+            enabled: manualEnabled,
+            isFavorite: manualIsFavorite
           };
         }
         return c;
@@ -369,7 +371,8 @@ export default function AdminPanel({
         currentShowTime: 'Direct',
         nextShow: 'Upcoming Event',
         guide: [],
-        enabled: manualEnabled
+        enabled: manualEnabled,
+        isFavorite: manualIsFavorite
       };
 
       startTransition(() => {
@@ -384,6 +387,7 @@ export default function AdminPanel({
     setManualLogo('⚽');
     setCustomCategory('');
     setManualEnabled(true);
+    setManualIsFavorite(false);
   };
 
   const startEditingChannel = (chan: Channel) => {
@@ -392,6 +396,7 @@ export default function AdminPanel({
     setManualUrl(chan.streamUrl);
     setManualLogo(chan.logo);
     setManualEnabled(chan.enabled !== false);
+    setManualIsFavorite(!!chan.isFavorite);
     
     const cat = chan.category || 'Sports';
     if (!allDropdownCategories.includes(cat)) {
@@ -412,6 +417,7 @@ export default function AdminPanel({
     setManualCategory('Sports');
     setCustomCategory('');
     setManualEnabled(true);
+    setManualIsFavorite(false);
     showFeedback('success', 'Cancelled channel editing.');
   };
 
@@ -784,7 +790,65 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              {/* Option 2: Raw Text Clipboard Fallback */}
+              {/* Option 2: Local M3U File Upload (Drag & Drop or Click) */}
+              <div className="space-y-1.5 pt-1 font-sans">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                  <Upload className="w-3.5 h-3.5 text-blue-400" /> Playlist File Upload (.m3u/.m3u8/.txt)
+                </label>
+                <div 
+                  id="admin-m3u-drag-drop-zone"
+                  className="relative group h-24 border border-dashed border-slate-800 hover:border-blue-500/60 bg-slate-950/20 hover:bg-slate-950/40 rounded flex flex-col justify-center items-center cursor-pointer transition duration-200"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const text = event.target?.result as string;
+                        if (text) {
+                          setM3uText(text);
+                          showFeedback('success', `File "${file.name}" loaded successfully (${(file.size / 1024).toFixed(1)} KB)! Parsing channels...`);
+                          processM3UText(text);
+                        }
+                      };
+                      reader.onerror = () => showFeedback('error', 'Failed to read local file.');
+                      reader.readAsText(file);
+                    }
+                  }}
+                  onClick={() => document.getElementById('admin-m3u-file-picker')?.click()}
+                >
+                  <input
+                    id="admin-m3u-file-picker"
+                    type="file"
+                    accept=".m3u,.m3u8,.txt"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const text = event.target?.result as string;
+                          if (text) {
+                            setM3uText(text);
+                            showFeedback('success', `File "${file.name}" loaded successfully (${(file.size / 1024).toFixed(1)} KB)! Parsing channels...`);
+                            processM3UText(text);
+                          }
+                        };
+                        reader.onerror = () => showFeedback('error', 'Failed to read local file.');
+                        reader.readAsText(file);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  <Upload className="w-5 h-5 text-slate-500 group-hover:text-blue-400 group-hover:scale-110 transition duration-200 mb-1" />
+                  <span className="text-[10px] text-slate-400 font-medium group-hover:text-slate-200 text-center px-4">
+                    Drag & drop your local <strong className="text-blue-400 font-bold">.m3u</strong> file here or <strong className="text-blue-400 font-bold underline">browse files</strong>
+                  </span>
+                  <span className="text-[8px] text-slate-600 font-mono mt-0.5">Loads and imports all listed stream channels instantly.</span>
+                </div>
+              </div>
+
+              {/* Option 3: Raw Text Clipboard Fallback */}
               <div className="space-y-1 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -958,6 +1022,25 @@ export default function AdminPanel({
                 </div>
               </div>
 
+              {/* Mark as Admin Favorite Toggle */}
+              <div className="md:col-span-2 flex items-center gap-3 bg-slate-950/40 p-3.5 rounded border border-slate-850">
+                <div className="flex items-center h-5">
+                  <input
+                    id="admin-input-favorite"
+                    type="checkbox"
+                    checked={manualIsFavorite}
+                    onChange={(e) => setManualIsFavorite(e.target.checked)}
+                    className="w-4.5 h-4.5 bg-slate-950 border border-slate-800 rounded checked:bg-amber-600 focus:ring-amber-500 focus:ring-2 text-amber-500 cursor-pointer"
+                  />
+                </div>
+                <div className="text-xs">
+                  <label htmlFor="admin-input-favorite" className="font-bold text-slate-200 cursor-pointer flex items-center gap-1.5">
+                     <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-550" /> Mark as Admin Favorite (Pins to Front Line)
+                  </label>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Favorite channels are highlighted with a star and automatically pinned at the front line of the station lists on the viewer dashboard.</p>
+                </div>
+              </div>
+
               <div className="md:col-span-2 pt-2 flex flex-col sm:flex-row gap-2">
                 {editingChannelId ? (
                   <>
@@ -1077,6 +1160,11 @@ export default function AdminPanel({
                         <span className="text-[9px] bg-slate-950 text-slate-400 px-1.5 py-0.5 rounded font-mono border border-slate-800">
                           {chan.category}
                         </span>
+                        {chan.isFavorite && (
+                          <span className="text-[8px] bg-amber-500/10 text-amber-500 px-1 py-0.5 border border-amber-500/35 rounded font-black font-mono uppercase tracking-wider flex items-center gap-1">
+                            <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-550" /> FAVOURITE
+                          </span>
+                        )}
                         {chan.enabled === false && (
                           <span className="text-[8px] bg-rose-500/10 text-rose-450 px-1 py-0.5 border border-rose-500/20 rounded font-black font-mono uppercase tracking-wider">
                             OFFLINE
@@ -1088,6 +1176,23 @@ export default function AdminPanel({
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      id={`admin-favorite-toggle-${chan.id}`}
+                      onClick={() => {
+                        const updated = channels.map(c => {
+                          if (c.id === chan.id) {
+                            return { ...c, isFavorite: !c.isFavorite };
+                          }
+                          return c;
+                        });
+                        onUpdateChannels(updated);
+                        showFeedback('success', `Channel "${chan.name}" ${!chan.isFavorite ? 'marked as Favorite' : 'removed from Favorites'}!`);
+                      }}
+                      className={`p-2 border rounded transition ${chan.isFavorite ? 'bg-amber-950/40 hover:bg-amber-900 border-amber-500/30 text-amber-500' : 'bg-slate-950 hover:bg-slate-900 text-slate-500 hover:text-amber-500 border-slate-800'}`}
+                      title={chan.isFavorite ? "Remove from Admin Favorites" : "Mark as Admin Favorite"}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${chan.isFavorite ? 'fill-amber-500' : ''}`} />
+                    </button>
                     <button
                       id={`admin-status-toggle-${chan.id}`}
                       onClick={() => toggleChannelStatus(chan)}

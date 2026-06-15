@@ -19,6 +19,7 @@ export interface Channel {
   guide: GuideEvent[];
   isDefault?: boolean;
   enabled?: boolean;
+  isFavorite?: boolean;
 }
 
 export interface UserSettings {

@@ -1,6 +1,6 @@
 import { useState, useTransition } from 'react';
 import { 
-  Search, Heart, Radio, AlertCircle 
+  Search, Heart, Radio, AlertCircle, Star
 } from 'lucide-react';
 import { Channel } from '../types';
 import ChannelLogo from './ChannelLogo';
@@ -172,8 +172,9 @@ export default function ChannelGuide({
                 </div>
 
                 {/* Title */}
-                <h4 className="font-extrabold text-[10px] tracking-tight truncate w-full text-center leading-tight">
-                  {chan.name}
+                <h4 className="font-extrabold text-[10px] tracking-tight truncate w-full text-center leading-tight flex items-center justify-center gap-1">
+                  {chan.isFavorite && <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-550 shrink-0" />}
+                  <span className="truncate">{chan.name}</span>
                 </h4>
               </div>
             );

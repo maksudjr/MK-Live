@@ -34,6 +34,13 @@ export default function App() {
   const isWritingRef = useRef<boolean>(false);
   const quotaErrorRef = useRef<boolean>(false);
 
+  const useLocalFirstRef = useRef<boolean>(false);
+  const [isLocalFirstMode, _setIsLocalFirstMode] = useState<boolean>(false);
+  const setLocalFirstMode = (val: boolean) => {
+    _setIsLocalFirstMode(val);
+    useLocalFirstRef.current = val;
+  };
+
   const setFirebaseQuotaError = (val: string | null) => {
     _setFirebaseQuotaError(val);
     quotaErrorRef.current = !!val;
@@ -106,10 +113,15 @@ export default function App() {
 
   // Subscribe to real-time changes in Firestore channels collection
   useEffect(() => {
+    if (useLocalFirstRef.current) {
+      console.log('Local-first mode active. Suppressing Firestore subscription setup.');
+      return;
+    }
+
     const channelsCollection = collection(db, 'channels');
 
     const unsubscribe = onSnapshot(channelsCollection, (snapshot) => {
-      if (isWritingRef.current || quotaErrorRef.current) {
+      if (isWritingRef.current || quotaErrorRef.current || useLocalFirstRef.current) {
         console.log('Suppressing Firestore channels snapshot update to respect optimistic local changes.');
         return;
       }
@@ -119,8 +131,13 @@ export default function App() {
         dbChannels.push(doc.data() as Channel);
       });
 
-      // Keep channels sorted alphabetically by name to ensure stable view order
-      dbChannels.sort((a, b) => a.name.localeCompare(b.name));
+      // Keep channels sorted: Admin favorites first, then alphabetically by name to ensure stable view order
+      dbChannels.sort((a, b) => {
+        const favA = a.isFavorite ? 1 : 0;
+        const favB = b.isFavorite ? 1 : 0;
+        if (favA !== favB) return favB - favA;
+        return a.name.localeCompare(b.name);
+      });
       setChannels(dbChannels);
       localStorage.setItem(LOCAL_CHANNELS_KEY, JSON.stringify(dbChannels));
       setFirebaseQuotaError(null);
@@ -129,6 +146,8 @@ export default function App() {
       const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
       if (isQuota) {
         setFirebaseQuotaError(errMessage);
+      } else {
+        setLocalFirstMode(true);
       }
       console.warn('Real-time channels fetch deferred to local cache:', error);
       
@@ -151,12 +170,15 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isLocalFirstMode]);
 
   // Subscribe to real-time changes in performance alert configuration
   useEffect(() => {
+    if (useLocalFirstRef.current) return;
+
     const alertDocRef = doc(db, 'app_configs', 'performance_alert');
     const unsubscribe = onSnapshot(alertDocRef, (docSnap) => {
+      if (useLocalFirstRef.current) return;
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data && typeof data.text === 'string') {
@@ -165,7 +187,7 @@ export default function App() {
         }
       } else {
         // Automatically publish the default alert if none exists
-        if (!attemptedSeedingAlertRef.current) {
+        if (!attemptedSeedingAlertRef.current && !useLocalFirstRef.current) {
           attemptedSeedingAlertRef.current = true;
           setDoc(alertDocRef, { text: 'Use Wifi connection or High speed connection for best performance.' })
             .catch(err => console.error('Error auto-seeding performance alert doc:', err));
@@ -177,17 +199,22 @@ export default function App() {
       const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
       if (isQuota) {
         setFirebaseQuotaError(errMessage);
+      } else {
+        setLocalFirstMode(true);
       }
       console.warn('Error listening to app performance alert configs:', error);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isLocalFirstMode]);
 
   // Subscribe to real-time changes in category serialization order configuration
   useEffect(() => {
+    if (useLocalFirstRef.current) return;
+
     const orderDocRef = doc(db, 'app_configs', 'category_order');
     const unsubscribe = onSnapshot(orderDocRef, (docSnap) => {
+      if (useLocalFirstRef.current) return;
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data && Array.isArray(data.order)) {
@@ -196,7 +223,7 @@ export default function App() {
         }
       } else {
         // Automatically publish default category order if none exists
-        if (!attemptedSeedingOrderRef.current) {
+        if (!attemptedSeedingOrderRef.current && !useLocalFirstRef.current) {
           attemptedSeedingOrderRef.current = true;
           setDoc(orderDocRef, { order: ['Sports', 'News', 'Cartoons', 'Others'] })
             .catch(err => console.error('Error auto-seeding category_order:', err));
@@ -208,12 +235,14 @@ export default function App() {
       const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
       if (isQuota) {
         setFirebaseQuotaError(errMessage);
+      } else {
+        setLocalFirstMode(true);
       }
       console.warn('Error listening to category order configs:', error);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isLocalFirstMode]);
 
   // Update selected channel fallback once channels are loaded
   useEffect(() => {
@@ -241,9 +270,17 @@ export default function App() {
   const handleUpdateChannels = async (updatedList: Channel[]) => {
     isWritingRef.current = true;
     try {
+      // Sort the list so favorites are at the top and others are sorted alphabetically by name
+      const sortedList = [...updatedList].sort((a, b) => {
+        const favA = a.isFavorite ? 1 : 0;
+        const favB = b.isFavorite ? 1 : 0;
+        if (favA !== favB) return favB - favA;
+        return a.name.localeCompare(b.name);
+      });
+
       // Always immediately save states and local storage for perfect offline resilience
-      setChannels(updatedList);
-      localStorage.setItem(LOCAL_CHANNELS_KEY, JSON.stringify(updatedList));
+      setChannels(sortedList);
+      localStorage.setItem(LOCAL_CHANNELS_KEY, JSON.stringify(sortedList));
 
       const previousIds = channels.map(c => c.id);
       const updatedIds = updatedList.map(c => c.id);
@@ -302,6 +339,8 @@ export default function App() {
       const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
       if (isQuota) {
         setFirebaseQuotaError(errMessage);
+      } else {
+        setLocalFirstMode(true);
       }
       console.warn('Failed to sync channel updates to Firestore, client fallback active:', error);
       try {
@@ -345,6 +384,8 @@ export default function App() {
         const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
         if (isQuota) {
           setFirebaseQuotaError(errMessage);
+        } else {
+          setLocalFirstMode(true);
         }
         console.warn('Reset channels Firestore write deferred:', error);
         try {
@@ -372,6 +413,8 @@ export default function App() {
        const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
        if (isQuota) {
          setFirebaseQuotaError(errMessage);
+       } else {
+         setLocalFirstMode(true);
        }
        console.error('Firestore warning alert save deferred:', error);
     }
@@ -389,6 +432,8 @@ export default function App() {
       const isQuota = errMessage.toLowerCase().includes('quota') || errMessage.toLowerCase().includes('exhausted') || errMessage.toLowerCase().includes('resource-exhausted');
       if (isQuota) {
         setFirebaseQuotaError(errMessage);
+      } else {
+        setLocalFirstMode(true);
       }
       console.error('Firestore category order save deferred:', error);
     }
@@ -478,8 +523,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Elegant Warning Banner for Firestore Daily Quotas */}
-      {firebaseQuotaError && (
+      {/* Elegant Warning Banner for Firestore Daily Quotas and Local-First Fallbacks */}
+      {(firebaseQuotaError || isLocalFirstMode) && (
         <div 
           id="firebase-quota-alert-banner" 
           className="shrink-0 bg-amber-950/95 border-b border-amber-500/30 px-4 py-2.5 flex items-start gap-3 z-30 transition-all font-sans"
@@ -487,34 +532,57 @@ export default function App() {
           <ShieldAlert className="w-4.5 h-4.5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
           <div className="flex-grow text-xs leading-normal">
             <span className="font-extrabold text-amber-400 uppercase tracking-wider block sm:inline mr-1.5">
-              Database Limit Reached:
+              {firebaseQuotaError ? 'Database Limit Reached:' : 'Database Offline Mode:'}
             </span>
             <span className="text-amber-200/90 font-medium">
-              Daily write operations are currently offline due to free-tier usage caps, but offline local storage synchronization has activated automatically! You can keep adjusting, creating, or toggling channels safely. Your custom streams and settings will persist on this device.
+              {firebaseQuotaError 
+                ? 'Daily write operations are currently offline due to free-tier usage caps, but offline local storage synchronization has activated automatically! You can keep adjusting, creating, or toggling channels safely. Your custom streams and settings will persist on this device.'
+                : 'Could not connect to the remote database. We have activated local-first offline resilience! You can safely edit, import, add, or delete channels. All your changes are fully saved on this device and will never be lost.'
+              }
             </span>
-            <span className="block mt-1 text-[10px] text-amber-400/90 leading-relaxed">
-              This quota will naturally reset tomorrow. You can monitor plans and statistics on the{' '}
-              <a 
-                href="https://firebase.google.com/pricing#cloud-firestore" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="underline hover:text-amber-300 font-extrabold focus:outline-none"
-              >
-                Firebase Spark Plan (Enterprise Edition section)
-              </a>. Direct project management or manual database scaling is available at your{' '}
-              <a 
-                href="https://console.firebase.google.com/project/premium-acronym-73n78/firestore/databases/ai-studio-32d69922-dece-43f8-9584-73406f6c959a/data?openUpgradeDialog=true" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="underline hover:text-amber-300 font-extrabold focus:outline-none"
-              >
-                Firestore Console Database Link
-              </a>.
-            </span>
+            {!firebaseQuotaError && (
+              <div className="mt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  id="reconnect-database-btn"
+                  onClick={() => setLocalFirstMode(false)}
+                  className="bg-amber-550 hover:bg-amber-400 text-amber-950 font-black text-[9px] uppercase px-2.5 py-1 rounded transition shadow-sm tracking-wider"
+                >
+                  Reconnect to Server
+                </button>
+                <span className="text-[10px] text-amber-450/70 font-mono">| Fallback Local Storage Active</span>
+              </div>
+            )}
+            {firebaseQuotaError && (
+              <span className="block mt-1 text-[10px] text-amber-400/90 leading-relaxed">
+                This quota will naturally reset tomorrow. You can monitor plans and statistics on the{' '}
+                <a 
+                  href="https://firebase.google.com/pricing#cloud-firestore" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="underline hover:text-amber-300 font-extrabold focus:outline-none"
+                >
+                  Firebase Spark Plan (Enterprise Edition section)
+                </a>. Direct project management or manual database scaling is available at your{' '}
+                <a 
+                  href="https://console.firebase.google.com/project/premium-acronym-73n78/firestore/databases/ai-studio-32d69922-dece-43f8-9584-73406f6c959a/data?openUpgradeDialog=true" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="underline hover:text-amber-300 font-extrabold focus:outline-none"
+                >
+                  Firestore Console Database Link
+                </a>.
+              </span>
+            )}
           </div>
           <button 
             id="close-quota-banner-btn"
-            onClick={() => setFirebaseQuotaError(null)} 
+            onClick={() => {
+              setFirebaseQuotaError(null);
+              if (isLocalFirstMode) {
+                _setIsLocalFirstMode(false);
+              }
+            }} 
             className="text-amber-400/70 hover:text-amber-250 transition p-1 hover:bg-amber-900/40 rounded shrink-0"
             title="Dismiss notification"
           >
